@@ -1,7 +1,4 @@
-const { startTransition } = require("react");
+// This file has been replaced by src/app/App.tsx
+// Please use the TypeScript version instead
 
-startTransition(() => {
-  console.log("This is a transition");
-});
-
-console.log("This is not a transition");    
+export { App } from './app/App';

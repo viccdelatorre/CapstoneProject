@@ -1,64 +1,63 @@
-import psycopg2
-import os
-from dotenv import load_dotenv
-import hashlib
+from django.core.management.base import BaseCommand
+from django.contrib.auth.hashers import make_password
+from app.models import EduUser, StudentProfile, DonorProfile
 import webbrowser
+import os
+import django
 
-load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")  # adjust if your settings module is different
+django.setup()
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+# now you can import your models
+from app.models import EduUser, StudentProfile, DonorProfile
 
-def create_student():
-    full_name = input("Student Name: ")
-    email = input("Student Email: ")
-    password = input("Password: ")
+class Command(BaseCommand):
+    help = 'Create a student or donor user'
 
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO students (full_name, email, password_hash) VALUES (%s, %s, %s) RETURNING id",
-        (full_name, email, hash_password(password))
-    )
-    student_id = cur.fetchone()[0]
-    conn.commit()
-    cur.close()
-    conn.close()
-    print(f"Student account created with ID {student_id}")
+    def handle(self, *args, **kwargs):
+        choice = input("Create (1) Student or (2) Donor? ")
 
-def create_donor():
-    full_name = input("Donor Name: ")
-    email = input("Donor Email: ")
-    password = input("Password: ")
+        if choice == "1":
+            self.create_student()
+        elif choice == "2":
+            self.create_donor()
+        else:
+            self.stdout.write(self.style.ERROR("Invalid choice"))
 
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO donors (full_name, email, password_hash) VALUES (%s, %s, %s) RETURNING id",
-        (full_name, email, hash_password(password))
-    )
-    donor_id = cur.fetchone()[0]
-    conn.commit()
-    cur.close()
-    conn.close()
-    print(f"Donor account created with ID {donor_id}")
+    def create_student(self):
+        full_name = input("Student Name: ")
+        email = input("Student Email: ")
+        password = input("Password: ")
 
-def verify_student_via_sso():
-    url = "http://localhost:8000/login"  # FastAPI backend endpoint
-    print("Opening browser to log in via university SSO...")
-    webbrowser.open(url)
-    input("Press Enter after completing the SSO login in your browser...")
-    
-def main():
-    choice = input("Create (1) Student or (2) Donor? ")
-    if choice == "1":
-        create_student()
-        verify_student_via_sso()
-    elif choice == "2":
-        create_donor()
-    else:
-        print("Invalid choice")
+        user = EduUser.objects.create(
+            username=email,
+            first_name=full_name.split()[0],
+            last_name=" ".join(full_name.split()[1:]),
+            email=email,
+            password=make_password(password),
+            role="student"
+        )
+        StudentProfile.objects.create(user=user)
+        self.stdout.write(self.style.SUCCESS(f"Student account created with ID {user.id}"))
 
-if __name__ == "__main__":
-    main()
+        # Optional SSO
+        url = "http://localhost:8000/sso-login"
+        print("Opening browser to log in via university SSO...")
+        webbrowser.open(url)
+        input("Press Enter after completing the SSO login in your browser...")
+
+    def create_donor(self):
+        full_name = input("Donor Name: ")
+        email = input("Donor Email: ")
+        password = input("Password: ")
+
+        user = EduUser.objects.create(
+            username=email,
+            first_name=full_name.split()[0],
+            last_name=" ".join(full_name.split()[1:]),
+            email=email,
+            password=make_password(password),
+            role="donor"
+        )
+        DonorProfile.objects.create(user=user)
+        self.stdout.write(self.style.SUCCESS(f"Donor account created with ID {user.id}"))

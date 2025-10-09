@@ -10,6 +10,8 @@ import webbrowser
 import os
 import django
 import webbrowser
+import os
+import django
 
 env_path = Path(__file__).resolve().parent.parent / "backend" / ".env"
 load_dotenv(env_path)

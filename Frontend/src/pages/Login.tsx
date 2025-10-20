@@ -34,9 +34,13 @@ export default function Login() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      await login(data.email, data.password);
-      toast.success('Welcome back!');
-      navigate('/discover');
+      const user = await login(data.email, data.password);
+      toast.success(`Welcome back, ${user.name ?? user.email.split('@')[0]}!`);
+      // navigate based on role
+      const role = user.roles?.[0] ?? null;
+      if (role === 'student') navigate('/student');
+      else if (role === 'donor') navigate('/donor');
+      else navigate('/discover');
     } catch (error) {
       toast.error('Invalid credentials. Please try again.');
     } finally {

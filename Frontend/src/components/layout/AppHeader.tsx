@@ -30,7 +30,7 @@ export const AppHeader = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container grid h-16 items-center grid-cols-3">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-light">
@@ -42,19 +42,15 @@ export const AppHeader = () => {
         </Link>
 
         {/* Navigation */}
-        <nav className="hidden md:flex items-center gap-6">
-          <Link
-            to="/discover"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Discover Students
-          </Link>
-          <Link
-            to="/help"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            How It Works
-          </Link>
+        <nav className="hidden md:flex items-center justify-center gap-6">
+          {isAuthenticated && (
+            <Link
+              to={getDashboardRoute()}
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Dashboard
+            </Link>
+          )}
           {isAuthenticated && hasRole('student') && (
             <Link
               to="/campaigns/new"
@@ -63,10 +59,18 @@ export const AppHeader = () => {
               Create Campaign
             </Link>
           )}
+          {isAuthenticated && (
+            <Link
+              to="/discover"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Discover Students
+            </Link>
+          )}
         </nav>
 
-        {/* Actions */}
-        <div className="flex items-center gap-3">
+  {/* Actions */}
+  <div className="flex items-center justify-end gap-3 pr-2">
           <ThemeToggle />
           
           {isAuthenticated && user ? (

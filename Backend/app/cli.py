@@ -1,10 +1,13 @@
+from pathlib import Path
 import psycopg2
 import os
 from dotenv import load_dotenv
 import hashlib
 import webbrowser
 
-load_dotenv()
+env_path = Path(__file__).resolve().parent.parent / "backend" / ".env"
+load_dotenv(env_path)
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def hash_password(password):

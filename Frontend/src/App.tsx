@@ -3,10 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/providers/AuthProvider";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppFooter } from "@/components/layout/AppFooter";
+import AuthProvider from "@/providers/AuthProvider";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -19,6 +19,8 @@ import DonorDashboard from "./pages/DonorDashboard";
 import Checkout from "./pages/Checkout";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import React, { useEffect, useState } from 'react';
+import { supabase } from './utils/supabase';
 
 const queryClient = new QueryClient();
 

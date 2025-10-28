@@ -51,9 +51,9 @@ export default function Register() {
       await registerUser(data.email, data.password, data.name, data.role);
       toast.success('Account created successfully!');
       
-      // Navigate to appropriate onboarding
-      const onboardingRoute = data.role === 'student' ? '/onboarding/student' : '/onboarding/donor';
-      navigate(onboardingRoute);
+      // Navigate to appropriate dashboard based on role
+      const dashboardRoute = data.role === 'student' ? '/student' : '/donor';
+      navigate(dashboardRoute);
     } catch (error) {
       toast.error('Something went wrong. Please try again.');
     } finally {

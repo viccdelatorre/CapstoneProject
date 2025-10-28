@@ -132,11 +132,9 @@ export default function StudentDashboard() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="funding">Funding</TabsTrigger>
-          <TabsTrigger value="academics">Academics</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -252,81 +250,6 @@ export default function StudentDashboard() {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-
-        <TabsContent value="academics" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <GraduationCap className="h-5 w-5" />
-                Academic Information
-              </CardTitle>
-              <CardDescription>
-                Your educational background and achievements
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">University</label>
-                    <p className="text-lg">{studentData.university}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Major</label>
-                    <p className="text-lg">{studentData.major}</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Academic Year</label>
-                    <p className="text-lg">{studentData.year}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Current GPA</label>
-                    <p className="text-lg font-semibold text-green-600">{studentData.gpa}/4.0</p>
-                  </div>
-                </div>
-              </div>
-              <div className="pt-4">
-                <Button variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Transcripts
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="profile" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Profile Management
-              </CardTitle>
-              <CardDescription>
-                Manage your public profile and settings
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="text-center py-8">
-                <div className="w-24 h-24 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <GraduationCap className="h-12 w-12 text-gray-500" />
-                </div>
-                <h3 className="font-semibold mb-2">{studentData.name}</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Profile {studentData.profileComplete}% Complete
-                </p>
-                <div className="space-y-2">
-                  <Button>Edit Profile</Button>
-                  <Button variant="outline" className="w-full">
-                    View Public Profile
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>

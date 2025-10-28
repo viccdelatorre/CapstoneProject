@@ -21,45 +21,6 @@ const Settings = () => {
 
         <Separator />
 
-        {/* Profile Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Profile</CardTitle>
-            <CardDescription>
-              Update your profile information and preferences.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input
-                  id="name"
-                  placeholder="Your full name"
-                  defaultValue={user?.name || ""}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.email@example.com"
-                  defaultValue={user?.email || ""}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Input
-                id="bio"
-                placeholder="Tell us about yourself"
-              />
-            </div>
-            <Button>Update Profile</Button>
-          </CardContent>
-        </Card>
-
         {/* Notification Settings */}
         <Card>
           <CardHeader>

@@ -14,6 +14,7 @@ import Discover from "./pages/Discover";
 import StudentProfile from "./pages/StudentProfile";
 import StudentDashboard from "./pages/StudentDashboard";
 import CampaignCreate from "./pages/CampaignCreate";
+import ProfilePage from "./pages/ProfilePage";
 import Help from "./pages/Help";
 import DonorDashboard from "./pages/DonorDashboard";
 import Checkout from "./pages/Checkout";
@@ -40,6 +41,7 @@ const App = () => (
                 <Route path="/students/:id" element={<StudentProfile />} />
                 <Route path="/student" element={<StudentDashboard />} />
                 <Route path="/campaigns/new" element={<CampaignCreate />} />
+                <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/help" element={<Help />} />
                 <Route path="/donor" element={<DonorDashboard />} />
                 <Route path="/checkout/:studentId" element={<Checkout />} />

@@ -52,7 +52,7 @@ export default function Register() {
       toast.success('Account created successfully!');
       
       // Navigate to appropriate onboarding
-      const onboardingRoute = data.role === 'student' ? '/onboarding/student' : '/onboarding/donor';
+      const onboardingRoute = data.role === 'student' ? '/student' : '/donor';
       navigate(onboardingRoute);
     } catch (error) {
       toast.error('Something went wrong. Please try again.');

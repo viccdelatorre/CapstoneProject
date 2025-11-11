@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect } from "react";
 import { api } from "@/lib/axios";
-import { supabase } from "@/lib/supabase";   // ✅ Import Supabase client
+import { supabase } from "@/lib/supabase";  
 
 export type UserRole = "student" | "donor" | "admin";
 
@@ -32,38 +32,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const VITE_USE_MOCK_AUTH = import.meta.env.VITE_USE_MOCK_AUTH === "true";
+
   const login = async (email: string, password: string) => {
-    
-      if (VITE_USE_MOCK_AUTH) {
-    const mod = await import("@/lib/mockUsers.json");
-    const mockUsers = (mod as any).default;
+    if (VITE_USE_MOCK_AUTH) {
+      const mod = await import("@/lib/mockUsers.json");
+      const mockUsers = (mod as any).default;
 
-    const found = mockUsers.find(
-      (u: any) => u.email === email && u.password === password
-    );
+      const found = mockUsers.find(
+        (u: any) => u.email === email && u.password === password
+      );
 
-    if (!found) throw new Error("Invalid mock credentials");
+      if (!found) throw new Error("Invalid mock credentials");
 
-    const user: User = {
-      id: found.id,
-      email: found.email,
-      name: found.name,
-      roles: [found.role],
-    };
+      const user: User = {
+        id: found.id,
+        email: found.email,
+        name: found.name,
+        roles: [found.role],
+      };
 
-    setUser(user);
-    localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("access", "mock-token"); // optional placeholder token
-    return user;
-  }
-    
+      setUser(user);
+      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("access", "mock-token");
+      return user;
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.session) throw new Error(error?.message || "Failed to log in with Supabase");
 
     const token = data.session.access_token;
 
     // Verify with Django (sync user)
-    const res = await api.post("/auth/login", { access_token: token });
+    const res = await api.post("/auth/login", { access_token: token }); // note trailing slash
     const syncedUser = res.data.user;
 
     const user: User = {
@@ -80,9 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user;
   };
 
-  // --------------------------------------------------------------------
   //  REGISTER via Supabase (includes metadata)
-  // --------------------------------------------------------------------
   const register = async (email: string, password: string, name: string, role: UserRole) => {
     const [firstName, ...lastParts] = name.split(" ");
     const lastName = lastParts.join(" ") || "";
@@ -108,9 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // --------------------------------------------------------------------
   // LOGOUT
-  // --------------------------------------------------------------------
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);

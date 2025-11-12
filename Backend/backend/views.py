@@ -12,11 +12,56 @@ from rest_framework.permissions import IsAuthenticated
 from app.models import EduUser
 import requests
 from rest_framework.permissions import AllowAny
-
+from rest_framework.decorators import authentication_classes
 SUPABASE_URL = "https://zumkrhrasldshlnfgpft.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1bWtyaHJhc2xkc2hsbmZncGZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mjg0NDMsImV4cCI6MjA3NjEwNDQ0M30.XO969jHsvXNXWVK1-q9UvqoOu78hm4EZdML6qwYAFtE"  # move to .env
 
+def get_edu_user_from_supabase(request):
+    """
+    Read Authorization: Bearer <supabase_jwt>, verify it with Supabase,
+    and return the matching EduUser.
+    """
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None, Response({"error": "Missing Authorization header"}, status=401)
 
+    token = auth_header.split(" ")[1]
+
+    res = requests.get(
+        f"{SUPABASE_URL}/auth/v1/user",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "apikey": SUPABASE_ANON_KEY,
+        },
+    )
+
+    if res.status_code != 200:
+        return None, Response(
+            {
+                "error": "Invalid Supabase token",
+                "supabase_status": res.status_code,
+                "supabase_body": res.text,
+            },
+            status=401,
+        )
+
+    user_data = res.json()
+    email = user_data.get("email")
+    metadata = user_data.get("user_metadata", {}) or user_data.get("raw_user_meta_data", {})
+    role = metadata.get("role")
+
+    edu_user, _ = EduUser.objects.get_or_create(
+        email=email,
+        defaults={
+            "username": email,
+            "password": make_password(None),
+            "is_active": True,
+            "is_student": role == "student" if role else False,
+            "is_donor": role == "donor" if role else False,
+        },
+    )
+
+    return edu_user, None
 # regiester_user view for user registration
 # it handles the registration of new users
 # it creates a new EduUser and associated profile based on the role
@@ -225,18 +270,37 @@ def verify_user(request):
         "is_donor": edu_user.is_donor,
     })
 
-
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@authentication_classes([])      
+@permission_classes([AllowAny])  # we do auth via Supabase JWT above
 def create_profile(request):
-    user = request.user
+    edu_user, error_response = get_edu_user_from_supabase(request)
+    if error_response:
+        return error_response
+
+    if not edu_user.is_student:
+        return Response({"error": "Not a student account"}, status=403)
+
     data = request.data
-    full_name = data.get('full_name')
-    email = user.email
+    full_name = data.get('full_name') or f"{edu_user.first_name} {edu_user.last_name}".strip() or edu_user.email
+    email = edu_user.email
+
+    # ✅ academic fields from request
+    university = data.get("university")
+    major = data.get("major")
+    academic_year = data.get("academic_year")
+    gpa = data.get("gpa")
 
     profile, created = StudentProfile.objects.get_or_create(
-        user=user,
-        defaults={'full_name': full_name, 'email': email}
+        user=edu_user,
+        defaults={
+            'full_name': full_name,
+            'email': email,
+            'university': university,
+            'major': major,
+            'academic_year': academic_year,
+            'gpa': gpa if gpa is not None else None,
+        }
     )
 
     if not created:
@@ -245,22 +309,64 @@ def create_profile(request):
     return Response({
         'id': profile.id,
         'full_name': profile.full_name,
-        'email': profile.email
+        'email': profile.email,
+        'university': profile.university,
+        'major': profile.major,
+        'academic_year': profile.academic_year,
+        'gpa': str(profile.gpa) if profile.gpa is not None else None,
     })
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@api_view(['GET', 'PUT'])
+@authentication_classes([])      
+@permission_classes([AllowAny])  # Supabase auth, not Django session/JWT
 def get_my_profile(request):
-    user = request.user
-    try:
-        profile = user.student_profile
+    edu_user, error_response = get_edu_user_from_supabase(request)
+    if error_response:
+        return error_response
+
+    if not edu_user.is_student:
+        return Response({"error": "Not a student account"}, status=403)
+
+    profile, _ = StudentProfile.objects.get_or_create(
+        user=edu_user,
+        defaults={
+            "full_name": f"{edu_user.first_name} {edu_user.last_name}".strip() or edu_user.email,
+            "email": edu_user.email,
+        },
+    )
+
+    if request.method == "GET":
         return Response({
             'id': profile.id,
             'full_name': profile.full_name,
-            'email': profile.email
+            'email': profile.email,
+            'university': profile.university,
+            'major': profile.major,
+            'academic_year': profile.academic_year,
+            'gpa': str(profile.gpa) if profile.gpa is not None else None,
         })
-    except StudentProfile.DoesNotExist:
-        return Response({'error': 'Profile not found'}, status=404)
-    
-    
+
+    # PUT -> update profile
+    data = request.data
+    profile.full_name = data.get("full_name", profile.full_name)
+    profile.university = data.get("university", profile.university)
+    profile.major = data.get("major", profile.major)
+    profile.academic_year = data.get("academic_year", profile.academic_year)
+
+    gpa = data.get("gpa", None)
+    if gpa is not None:
+        try:
+            profile.gpa = float(gpa)
+        except (TypeError, ValueError):
+            return Response({"error": "Invalid GPA value"}, status=400)
+
+    profile.save()
+
+    return Response({
+        'id': profile.id,
+        'full_name': profile.full_name,
+        'email': profile.email,
+        'university': profile.university,
+        'major': profile.major,
+        'academic_year': profile.academic_year,
+        'gpa': str(profile.gpa) if profile.gpa is not None else None,
+    })

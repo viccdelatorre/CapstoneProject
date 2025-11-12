@@ -22,11 +22,20 @@ class EduUser(AbstractUser):
     is_student = models.BooleanField(default=False)
     is_donor = models.BooleanField(default=False)
 
-    
 class StudentProfile(models.Model):
-    user = models.OneToOneField(EduUser, on_delete=models.CASCADE, related_name='student_profile')
+    user = models.OneToOneField(EduUser, on_delete=models.CASCADE)
     full_name = models.CharField(max_length=255)
-    email = models.EmailField(unique=True)
+    email = models.EmailField()
+
+    # new fields
+    university = models.CharField(max_length=255, null=True, blank=True)
+    major = models.CharField(max_length=255, null=True, blank=True)
+    academic_year = models.CharField(max_length=50, null=True, blank=True)
+    gpa = models.FloatField(null=True, blank=True)
+
+    def __str__(self):
+        return self.full_name
+
     # add more student-specific fields here
 
 class DonorProfile(models.Model):

@@ -30,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const storedUser = localStorage.getItem("user");
     if (storedUser) setUser(JSON.parse(storedUser));
   }, []);
-
+  
   const VITE_USE_MOCK_AUTH = import.meta.env.VITE_USE_MOCK_AUTH === "true";
 
   const login = async (email: string, password: string) => {

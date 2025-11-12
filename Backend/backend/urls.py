@@ -13,19 +13,28 @@ Class-based views
 Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+"""# backend/urls.py
 from django.contrib import admin
 from django.urls import path
-from backend.views import register_user,login_user, verify_user
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from backend.views import (
+    register_user,
+    login_user,
+    verify_user,
+    get_my_profile,
+    create_profile,
+)
+from rest_framework_simplejwt.views import TokenRefreshView
 
-# Define the URL patterns for the backend application
-# URL patterns map URL paths to their corresponding view functions
-# Each path function takes a URL pattern and a view function as arguments
 urlpatterns = [
-    path('auth/registeQr', register_user),
-    path("auth/login", login_user),
-    path("auth/verify_user", verify_user),
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('auth/verify_user', verify_user),
+    path('admin/', admin.site.urls),
+
+    path('auth/register', register_user, name='register'),
+    path('auth/login', login_user, name='login'),
+    path('auth/verify_user', verify_user, name='verify_user'),
+
+    # Profile
+    path('auth/profile', get_my_profile, name='get_my_profile'),        # GET
+    path('auth/profile/create', create_profile, name='create_profile'), # POST
+
+    path('auth/token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
 ]

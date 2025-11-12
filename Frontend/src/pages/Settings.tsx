@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -5,9 +6,103 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/providers/AuthProvider";
+import { api } from "@/lib/axios";
+import { toast } from "sonner";
+
+type StudentProfile = {
+  id: number;
+  full_name: string;
+  email: string;
+  bio?: string | null;
+  university?: string | null;
+  major?: string | null;
+  academic_year?: string | null;
+  gpa?: string | number | null;
+};
 
 const Settings = () => {
   const { user } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [profileError, setProfileError] = useState<string | null>(null);
+
+  // form state
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState(""); // usually read-only
+  const [bio, setBio] = useState("");
+  const [university, setUniversity] = useState("");
+  const [major, setMajor] = useState("");
+  const [academicYear, setAcademicYear] = useState("");
+  const [gpa, setGpa] = useState<string>("");
+
+  // load existing profile on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("access");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        // This assumes you have GET /auth/profile/ wired to get_my_profile (or similar)
+        const res = await api.get<StudentProfile>("/auth/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const p = res.data;
+        setFullName(p.full_name || user?.name || "");
+        setEmail(p.email || user?.email || "");
+        setBio((p.bio as string) || "");
+        setUniversity(p.university || "");
+        setMajor(p.major || "");
+        setAcademicYear(p.academic_year || "");
+        setGpa(p.gpa !== null && p.gpa !== undefined ? String(p.gpa) : "");
+      } catch (err) {
+        console.error("Error loading profile", err);
+        setProfileError("Could not load your profile.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  const handleUpdateProfile = async () => {
+    try {
+      const token = localStorage.getItem("access");
+      if (!token) {
+        toast.error("You are not authenticated.");
+        return;
+      }
+
+      // Send updated profile to backend
+      await api.put(
+        "/auth/profile",
+        {
+          full_name: fullName,
+          bio,
+          university,
+          major,
+          academic_year: academicYear,
+          gpa: gpa ? parseFloat(gpa) : null,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      toast.success("Profile updated successfully!");
+    } catch (err) {
+      console.error("Error updating profile", err);
+      toast.error("Failed to update profile. Please try again.");
+    }
+  };
 
   return (
     <div className="container max-w-4xl py-8">
@@ -17,6 +112,16 @@ const Settings = () => {
           <p className="text-muted-foreground">
             Manage your account settings and preferences.
           </p>
+          {loading && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Loading profile…
+            </p>
+          )}
+          {profileError && (
+            <p className="text-sm text-destructive mt-2">
+              {profileError}
+            </p>
+          )}
         </div>
 
         <Separator />
@@ -26,17 +131,19 @@ const Settings = () => {
           <CardHeader>
             <CardTitle>Profile</CardTitle>
             <CardDescription>
-              Update your profile information and preferences.
+              Update your profile information and academic details.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Basic info */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
                   placeholder="Your full name"
-                  defaultValue={user?.name || ""}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -45,22 +152,76 @@ const Settings = () => {
                   id="email"
                   type="email"
                   placeholder="your.email@example.com"
-                  defaultValue={user?.email || ""}
+                  value={email}
+                  disabled
                 />
               </div>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="bio">Bio</Label>
               <Input
                 id="bio"
                 placeholder="Tell us about yourself"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
               />
             </div>
-            <Button>Update Profile</Button>
+
+            {/* ✅ Academic info fields */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="university">University</Label>
+                <Input
+                  id="university"
+                  placeholder="e.g. Arizona State University"
+                  value={university}
+                  onChange={(e) => setUniversity(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="major">Major</Label>
+                <Input
+                  id="major"
+                  placeholder="e.g. Computer Science"
+                  value={major}
+                  onChange={(e) => setMajor(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="academic-year">Academic Year</Label>
+                <Input
+                  id="academic-year"
+                  placeholder="e.g. Junior"
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gpa">Current GPA</Label>
+                <Input
+                  id="gpa"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="4"
+                  placeholder="e.g. 3.8"
+                  value={gpa}
+                  onChange={(e) => setGpa(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <Button onClick={handleUpdateProfile} disabled={loading}>
+              Update Profile
+            </Button>
           </CardContent>
         </Card>
 
-        {/* Notification Settings */}
+        {/* Notification Settings – unchanged */}
         <Card>
           <CardHeader>
             <CardTitle>Notifications</CardTitle>
@@ -101,7 +262,7 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Privacy Settings */}
+        {/* Privacy Settings – unchanged */}
         <Card>
           <CardHeader>
             <CardTitle>Privacy</CardTitle>
@@ -132,7 +293,7 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {/* Account Actions */}
+        {/* Account Actions – unchanged */}
         <Card>
           <CardHeader>
             <CardTitle>Account</CardTitle>

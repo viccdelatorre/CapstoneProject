@@ -13,19 +13,28 @@ Class-based views
 Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+"""# backend/urls.py
 from django.contrib import admin
 from django.urls import path
-from backend.views import register_user, login_user, verify_user
+from backend.views import (
+    register_user,
+    login_user,
+    verify_user,
+    get_my_profile,
+    create_profile,
+)
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
 
-    path('auth/register/', register_user, name='register'),
-    path('auth/login/', login_user, name='login'),
-    path('auth/verify_user/', verify_user, name='verify_user'),
+    path('auth/register', register_user, name='register'),
+    path('auth/login', login_user, name='login'),
+    path('auth/verify_user', verify_user, name='verify_user'),
 
-    path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # Profile
+    path('auth/profile', get_my_profile, name='get_my_profile'),        # GET
+    path('auth/profile/create', create_profile, name='create_profile'), # POST
+
+    path('auth/token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
 ]
-

@@ -58,3 +58,52 @@ class DonorProfile(models.Model):
 
     def __str__(self):
         return self.full_name
+    # add more donor-specific fields here
+
+class Campaign(models.Model):
+    """Campaign model for student fundraising"""
+    
+    CATEGORY_CHOICES = [
+        ('education', 'Education'),
+        ('tuition', 'Tuition'),
+        ('scholarship', 'Scholarship'),
+        ('student_loans', 'Student Loans'),
+        ('living_expenses', 'Living Expenses'),
+        ('other', 'Other'),
+    ]
+
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='campaigns')
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    goal_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    current_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='education')
+    image_url = models.URLField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    deadline = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'app_campaign'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def progress_percentage(self):
+        if self.goal_amount == 0:
+            return 0
+        return float((self.current_amount / self.goal_amount) * 100)
+
+    @property
+    def is_deadline_passed(self):
+        from django.utils import timezone
+        return timezone.now() > self.deadline

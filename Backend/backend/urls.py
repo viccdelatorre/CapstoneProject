@@ -27,6 +27,11 @@ from backend.views import (
     get_student_by_id,
     get_donor_profile,
     list_donor_tiers,
+    create_campaign,    
+    get_campaigns,        
+    get_campaign_detail,
+    update_campaign,
+    delete_campaign,
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -42,6 +47,13 @@ urlpatterns = [
     path('auth/profile/create', create_profile, name='create_profile'),
 
     path('students/discover', discover_students, name='discover_students'),
+
+    #CAMPAIGN
+    path('campaigns/create', create_campaign, name='create_campaign'),
+    path('campaigns', get_campaigns, name='get_campaigns'),
+    path('campaigns/<int:campaign_id>', get_campaign_detail, name='get_campaign_detail'),
+    path('campaigns/<int:campaign_id>/update', update_campaign, name='update_campaign'),
+    path('campaigns/<int:campaign_id>/delete', delete_campaign, name='delete_campaign'),
 
     path('auth/token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
     path('donor/profile', get_donor_profile, name='get_donor_profile'),

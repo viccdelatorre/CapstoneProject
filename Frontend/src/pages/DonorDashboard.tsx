@@ -46,6 +46,24 @@ const DonorDashboard = () => {
         <h1 className="text-4xl font-bold mb-2">Donor Dashboard</h1>
         <p className="text-muted-foreground">Track your impact and manage your giving</p>
       </div>
+          {/* Donor Tier Overview */}
+          <Card className="mb-8 border-l-4 border-yellow-500">
+            <CardHeader>
+              <CardTitle>Your Donor Tier</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold">Gold Member</h2>
+                <p className="text-sm text-muted-foreground">
+                  You’ve donated $5,000 total —  🌟 top 5% of donors
+                </p>
+              </div>
+              <div className="flex flex-col items-end">
+                <p className="text-sm text-muted-foreground mb-1">Progress to next reward</p>
+                <Progress value={82} className="w-40" />
+              </div>
+            </CardContent>
+          </Card>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

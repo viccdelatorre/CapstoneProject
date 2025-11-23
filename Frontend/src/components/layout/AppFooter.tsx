@@ -28,6 +28,9 @@ export const AppFooter = () => {
                   Discover Students
                 </Link>
               </li>
+                <Link to="/membership" className="hover:text-primary">
+                  Membership
+                </Link>
               <li>
                 <Link to="/help" className="text-muted-foreground transition-colors hover:text-foreground">
                   How It Works

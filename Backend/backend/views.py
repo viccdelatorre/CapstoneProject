@@ -13,8 +13,84 @@ from app.models import EduUser
 import requests
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import authentication_classes
+from app.models import DonorProfile, DonorTier
+
 SUPABASE_URL = "https://zumkrhrasldshlnfgpft.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1bWtyaHJhc2xkc2hsbmZncGZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mjg0NDMsImV4cCI6MjA3NjEwNDQ0M30.XO969jHsvXNXWVK1-q9UvqoOu78hm4EZdML6qwYAFtE"  # move to .env
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def list_donor_tiers(request):
+    tiers = DonorTier.objects.all().order_by('min_donation')
+    data = [
+        {
+            "name": t.name,
+            "description": t.description,
+            "min_donation": str(t.min_donation),
+            "benefits": t.benefits or {},
+        }
+        for t in tiers
+    ]
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_donor_profile(request):
+    edu_user, error_response = get_edu_user_from_supabase(request)
+    if error_response:
+        return error_response
+
+    if not edu_user.is_donor:
+        return Response({"error": "Not a donor account"}, status=403)
+
+    try:
+        donor_profile = DonorProfile.objects.select_related("tier").get(user=edu_user)
+    except DonorProfile.DoesNotExist:
+        return Response({"error": "Donor profile not found"}, status=404)
+
+    return Response({
+        "full_name": donor_profile.full_name,
+        "email": donor_profile.email,
+        "total_donations": str(donor_profile.total_donations),
+        "tier": donor_profile.tier.name if donor_profile.tier else None,
+        "tier_benefits": donor_profile.tier.benefits if donor_profile.tier else None,
+    })
+@api_view(['GET'])
+@authentication_classes([])  
+@permission_classes([AllowAny])
+def discover_students(request):
+    students = StudentProfile.objects.all().order_by("full_name")
+    data = [
+        {
+            "id": s.id,
+            "full_name": s.full_name,
+            "email": s.email,
+            "university": s.university,
+            "major": s.major,
+            "academic_year": s.academic_year,
+            "gpa": str(s.gpa) if s.gpa is not None else None,
+        }
+        for s in students
+    ]
+    return Response(data)
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def get_student_by_id(request, id):
+    try:
+        student = StudentProfile.objects.get(id=id)
+    except StudentProfile.DoesNotExist:
+        return Response({"error": "Student not found"}, status=404)
+
+    return Response({
+        "id": student.id,
+        "full_name": student.full_name,
+        "email": student.email,
+        "university": student.university,
+        "major": student.major,
+        "academic_year": student.academic_year,
+        "gpa": str(student.gpa) if student.gpa else None,
+    })
 
 def get_edu_user_from_supabase(request):
     """
@@ -62,6 +138,36 @@ def get_edu_user_from_supabase(request):
     )
 
     return edu_user, None
+
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])  # we rely on Supabase JWT, not Django auth
+def list_students_for_donor(request):
+    edu_user, error_response = get_edu_user_from_supabase(request)
+    if error_response:
+        return error_response
+
+    # donor-only access
+    if not edu_user.is_donor:
+        return Response({"error": "Not a donor account"}, status=403)
+
+    students = StudentProfile.objects.all().order_by("full_name")
+
+    data = []
+    for s in students:
+        data.append({
+            "id": s.id,
+            "full_name": s.full_name,
+            "email": s.email,
+            "university": s.university,
+            "major": s.major,
+            "academic_year": s.academic_year,
+            "gpa": str(s.gpa) if s.gpa is not None else None,
+        })
+
+    return Response(data)
+
 # regiester_user view for user registration
 # it handles the registration of new users
 # it creates a new EduUser and associated profile based on the role

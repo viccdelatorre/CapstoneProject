@@ -19,6 +19,8 @@ import DonorDashboard from "./pages/DonorDashboard";
 import Checkout from "./pages/Checkout";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import DonorMembership from "./pages/DonorMembership";
+
 
 const queryClient = new QueryClient();
 
@@ -44,6 +46,8 @@ const App = () => (
                 <Route path="/donor" element={<DonorDashboard />} />
                 <Route path="/checkout/:studentId" element={<Checkout />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/membership" element={<DonorMembership />} />
+
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>

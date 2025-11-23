@@ -25,6 +25,7 @@ const CreateCampaign = () => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   // Form state (same pattern as Settings)
   const [title, setTitle] = useState("");
@@ -34,12 +35,21 @@ const CreateCampaign = () => {
   const [imageUrl, setImageUrl] = useState("");
   const [deadline, setDeadline] = useState("");
 
-  // Redirect if not authenticated
+  // Redirect if not authenticated after checking
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-    }
-  }, [user, navigate]);
+    const checkAuth = async () => {
+      const token = localStorage.getItem("access");
+      const storedUser = localStorage.getItem("user");
+      
+      if (!token || !storedUser) {
+        navigate("/login");
+      } else {
+        setAuthChecked(true);
+      }
+    };
+    
+    checkAuth();
+  }, [navigate]);
 
   // Validate form
   const validateForm = (): boolean => {
@@ -120,6 +130,17 @@ const CreateCampaign = () => {
       setLoading(false);
     }
   };
+
+  // Show loading while checking auth
+  if (!authChecked) {
+    return (
+      <div className="container max-w-4xl py-8">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-4xl py-8">

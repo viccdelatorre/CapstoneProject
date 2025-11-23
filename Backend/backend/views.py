@@ -641,3 +641,37 @@ def update_campaign(request, campaign_id):
         return Response({"error": "Campaign not found"}, status=404)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
+
+
+@api_view(['DELETE'])
+@authentication_classes([])      
+@permission_classes([AllowAny])
+def delete_campaign(request, campaign_id):
+    """Delete a campaign"""
+    from app.models import Campaign
+    
+    edu_user, error_response = get_edu_user_from_supabase(request)
+    if error_response:
+        return error_response
+
+    if not edu_user.is_student:
+        return Response({"error": "Only students can delete campaigns"}, status=403)
+
+    try:
+        campaign = Campaign.objects.get(id=campaign_id)
+        
+        # Verify this campaign belongs to the logged-in student
+        if campaign.student.user.id != edu_user.id:
+            return Response({"error": "You can only delete your own campaigns"}, status=403)
+
+        campaign_title = campaign.title
+        campaign.delete()
+
+        return Response({
+            "message": f"Campaign '{campaign_title}' deleted successfully"
+        }, status=200)
+
+    except Campaign.DoesNotExist:
+        return Response({"error": "Campaign not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

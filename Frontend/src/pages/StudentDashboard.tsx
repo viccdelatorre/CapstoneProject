@@ -27,7 +27,8 @@ import {
   TrendingUp,
   Calendar,
   Target,
-  Edit
+  Edit,
+  Trash2
 } from "lucide-react";
 
 type StudentProfile = {
@@ -201,6 +202,36 @@ export default function StudentDashboard() {
       toast.error(err.response?.data?.error || "Failed to update campaign");
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  // Delete campaign
+  const handleDeleteCampaign = async (campaignId: number, campaignTitle: string) => {
+    if (!confirm(`Are you sure you want to delete the campaign "${campaignTitle}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("access");
+
+      await api.delete(`/campaigns/${campaignId}/delete`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      toast.success("Campaign deleted successfully!");
+      
+      // Refresh campaigns list
+      const profileRes = await api.get("/auth/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const studentId = profileRes.data.id;
+      const campaignsRes = await api.get<Campaign[]>(`/campaigns?student_id=${studentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCampaigns(campaignsRes.data);
+    } catch (err: any) {
+      console.error("Error deleting campaign", err);
+      toast.error(err.response?.data?.error || "Failed to delete campaign");
     }
   };
 
@@ -456,6 +487,13 @@ export default function StudentDashboard() {
                           </Button>
                           <Button variant="outline" size="sm" className="flex-1">
                             Share
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm"
+                            onClick={() => handleDeleteCampaign(campaign.id, campaign.title)}
+                          >
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </CardContent>

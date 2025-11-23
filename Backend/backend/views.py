@@ -547,3 +547,97 @@ def get_campaign_detail(request, campaign_id):
         return Response({"error": "Campaign not found"}, status=404)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
+
+
+@api_view(['PUT'])
+@authentication_classes([])      
+@permission_classes([AllowAny])
+def update_campaign(request, campaign_id):
+    """Update campaign details"""
+    from app.models import Campaign
+    from django.utils import timezone
+    from datetime import datetime
+    
+    edu_user, error_response = get_edu_user_from_supabase(request)
+    if error_response:
+        return error_response
+
+    if not edu_user.is_student:
+        return Response({"error": "Only students can update campaigns"}, status=403)
+
+    try:
+        campaign = Campaign.objects.get(id=campaign_id)
+        
+        # Verify this campaign belongs to the logged-in student
+        if campaign.student.user.id != edu_user.id:
+            return Response({"error": "You can only update your own campaigns"}, status=403)
+
+        # Update fields
+        title = request.data.get("title")
+        description = request.data.get("description")
+        goal_amount = request.data.get("goal_amount")
+        category = request.data.get("category")
+        image_url = request.data.get("image_url")
+        deadline_str = request.data.get("deadline")
+
+        if title:
+            if len(title.strip()) == 0 or len(title) > 200:
+                return Response({"error": "Title must be between 1 and 200 characters"}, status=400)
+            campaign.title = title.strip()
+
+        if description:
+            if len(description.strip()) == 0 or len(description) > 2000:
+                return Response({"error": "Description must be between 1 and 2000 characters"}, status=400)
+            campaign.description = description.strip()
+
+        if goal_amount is not None:
+            try:
+                goal = float(goal_amount)
+                if goal <= 0:
+                    return Response({"error": "Goal amount must be greater than 0"}, status=400)
+                campaign.goal_amount = goal
+            except (ValueError, TypeError):
+                return Response({"error": "Invalid goal amount"}, status=400)
+
+        if category:
+            if category not in dict(Campaign.CATEGORY_CHOICES):
+                return Response({"error": "Invalid category"}, status=400)
+            campaign.category = category
+
+        if image_url is not None:
+            campaign.image_url = image_url if image_url else None
+
+        if deadline_str:
+            try:
+                if 'T' in deadline_str:
+                    deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                else:
+                    deadline = datetime.fromisoformat(deadline_str)
+                    if deadline.tzinfo is None:
+                        deadline = timezone.make_aware(deadline)
+                
+                if deadline <= timezone.now():
+                    return Response({"error": "Deadline must be in the future"}, status=400)
+                
+                campaign.deadline = deadline
+            except Exception as e:
+                return Response({"error": f"Invalid deadline format: {str(e)}"}, status=400)
+
+        campaign.save()
+
+        return Response({
+            "id": campaign.id,
+            "title": campaign.title,
+            "description": campaign.description,
+            "goal_amount": str(campaign.goal_amount),
+            "category": campaign.category,
+            "image_url": campaign.image_url,
+            "deadline": campaign.deadline.isoformat(),
+            "updated_at": campaign.updated_at.isoformat(),
+            "message": "Campaign updated successfully"
+        }, status=200)
+
+    except Campaign.DoesNotExist:
+        return Response({"error": "Campaign not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

@@ -24,7 +24,8 @@ from backend.views import (
     create_profile,
     create_campaign,    
     get_campaigns,        
-    get_campaign_detail,  
+    get_campaign_detail,
+    update_campaign,
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -43,6 +44,7 @@ urlpatterns = [
     path('campaigns/create', create_campaign, name='create_campaign'),
     path('campaigns', get_campaigns, name='get_campaigns'),
     path('campaigns/<int:campaign_id>', get_campaign_detail, name='get_campaign_detail'),
+    path('campaigns/<int:campaign_id>/update', update_campaign, name='update_campaign'),
 
     path('auth/token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
 ]

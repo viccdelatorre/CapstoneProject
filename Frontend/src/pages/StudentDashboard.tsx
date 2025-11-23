@@ -5,8 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/providers/AuthProvider";
 import { api } from "@/lib/axios";
+import { toast } from "sonner";
 
 import { 
   GraduationCap, 
@@ -20,7 +24,10 @@ import {
   Settings,
   Upload,
   Award,
-  TrendingUp
+  TrendingUp,
+  Calendar,
+  Target,
+  Edit
 } from "lucide-react";
 
 type StudentProfile = {
@@ -33,12 +40,45 @@ type StudentProfile = {
   gpa?: string | number | null;
 };
 
+type Campaign = {
+  id: number;
+  title: string;
+  description: string;
+  goal_amount: string;
+  current_amount: string;
+  progress_percentage: number;
+  category: string;
+  image_url?: string | null;
+  deadline: string;
+  created_at: string;
+  student: {
+    id: number;
+    full_name: string;
+  };
+};
+
 export default function StudentDashboard() {
   const { user } = useAuth();
 
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+
+  // Edit modal state
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Edit form state
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editGoalAmount, setEditGoalAmount] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState("");
+  const [editDeadline, setEditDeadline] = useState("");
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -68,11 +108,111 @@ export default function StudentDashboard() {
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+    const fetchCampaigns = async () => {
+      try {
+        const token = localStorage.getItem("access");
+        if (!token) {
+          setLoadingCampaigns(false);
+          return;
+        }
+
+        // Get student profile to get student ID
+        const profileRes = await api.get("/auth/profile", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const studentId = profileRes.data.id;
+
+        // Fetch campaigns for this student
+        const campaignsRes = await api.get<Campaign[]>(`/campaigns?student_id=${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setCampaigns(campaignsRes.data);
+      } catch (err) {
+        console.error("Error fetching campaigns", err);
+      } finally {
+        setLoadingCampaigns(false);
+      }
+    };
+
+    fetchCampaigns();
+  }, []);
+
+  // Open edit dialog
+  const handleEditCampaign = (campaign: Campaign) => {
+    setEditingCampaign(campaign);
+    setEditTitle(campaign.title);
+    setEditDescription(campaign.description);
+    setEditGoalAmount(campaign.goal_amount);
+    setEditCategory(campaign.category);
+    setEditImageUrl(campaign.image_url || "");
+    // Convert ISO date to datetime-local format
+    const deadlineDate = new Date(campaign.deadline);
+    const localDateTime = new Date(deadlineDate.getTime() - deadlineDate.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+    setEditDeadline(localDateTime);
+    setIsEditDialogOpen(true);
+  };
+
+  // Update campaign
+  const handleUpdateCampaign = async () => {
+    if (!editingCampaign) return;
+
+    try {
+      setEditLoading(true);
+      const token = localStorage.getItem("access");
+
+      // Convert deadline to ISO format
+      const deadlineDate = new Date(editDeadline);
+      const isoDeadline = deadlineDate.toISOString();
+
+      await api.put(
+        `/campaigns/${editingCampaign.id}/update`,
+        {
+          title: editTitle.trim(),
+          description: editDescription.trim(),
+          goal_amount: parseFloat(editGoalAmount),
+          category: editCategory,
+          image_url: editImageUrl || null,
+          deadline: isoDeadline,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      toast.success("Campaign updated successfully!");
+      setIsEditDialogOpen(false);
+      
+      // Refresh campaigns list
+      const profileRes = await api.get("/auth/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const studentId = profileRes.data.id;
+      const campaignsRes = await api.get<Campaign[]>(`/campaigns?student_id=${studentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCampaigns(campaignsRes.data);
+    } catch (err: any) {
+      console.error("Error updating campaign", err);
+      toast.error(err.response?.data?.error || "Failed to update campaign");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const displayName =
     profile?.full_name ||
     user?.name ||
     user?.email?.split("@")[0] ||
     "Student";
+
+  // Calculate totals from campaigns
+  const totalGoal = campaigns.reduce((sum, c) => sum + parseFloat(c.goal_amount || "0"), 0);
+  const totalFunding = campaigns.reduce((sum, c) => sum + parseFloat(c.current_amount || "0"), 0);
 
   // Use profile values with reasonable fallbacks
   const studentData = {
@@ -82,10 +222,10 @@ export default function StudentDashboard() {
     year: profile?.academic_year || "Add your academic year",
     gpa: profile?.gpa ?? "N/A",
     profileComplete: 85, // you can later compute this from profile
-    fundingGoal: 15000,
-    currentFunding: 8500,
+    fundingGoal: totalGoal || 15000,
+    currentFunding: totalFunding,
     donors: 12,
-    campaigns: 2,
+    campaigns: campaigns.length,
   };
 
   const recentActivities = [
@@ -206,7 +346,203 @@ export default function StudentDashboard() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
 
-        {/* ... overview & funding tabs unchanged ... */}
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Active Campaigns Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    My Active Campaigns
+                  </CardTitle>
+                  <CardDescription>
+                    Track your fundraising campaigns
+                  </CardDescription>
+                </div>
+                <Button onClick={() => window.location.href = '/campaigns/new'}>
+                  Create Campaign
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loadingCampaigns ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading campaigns...
+                </div>
+              ) : campaigns.length === 0 ? (
+                <div className="text-center py-12">
+                  <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Start your first fundraising campaign to reach your educational goals.
+                  </p>
+                  <Button onClick={() => window.location.href = '/CreateCampaign'}>
+                    Create Your First Campaign
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {campaigns.map((campaign) => (
+                    <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                      {campaign.image_url && (
+                        <div className="h-48 overflow-hidden">
+                          <img 
+                            src={campaign.image_url} 
+                            alt={campaign.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg mb-2">{campaign.title}</CardTitle>
+                            <Badge variant="secondary" className="mb-2">
+                              {campaign.category}
+                            </Badge>
+                          </div>
+                        </div>
+                        <CardDescription className="line-clamp-2">
+                          {campaign.description}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Progress */}
+                        <div>
+                          <div className="flex justify-between text-sm mb-2">
+                            <span className="font-semibold">
+                              ${parseFloat(campaign.current_amount).toLocaleString()}
+                            </span>
+                            <span className="text-muted-foreground">
+                              of ${parseFloat(campaign.goal_amount).toLocaleString()}
+                            </span>
+                          </div>
+                          <Progress value={campaign.progress_percentage} className="h-2" />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {campaign.progress_percentage.toFixed(1)}% funded
+                          </p>
+                        </div>
+
+                        {/* Stats */}
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>
+                              {new Date(campaign.deadline).toLocaleDateString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Target className="h-4 w-4" />
+                            <span>{new Date(campaign.deadline) > new Date() ? 'Active' : 'Ended'}</span>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex gap-2 pt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1"
+                            onClick={() => handleEditCampaign(campaign)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" />
+                            Update
+                          </Button>
+                          <Button variant="outline" size="sm" className="flex-1">
+                            Share
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Recent Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {recentActivities.map((activity, index) => {
+                    const Icon = activity.icon;
+                    return (
+                      <div key={index} className="flex items-start gap-4 pb-4 border-b last:border-0">
+                        <div className="rounded-full bg-primary/10 p-2">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">{activity.message}</p>
+                          <p className="text-xs text-muted-foreground">{activity.time}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5" />
+                  Upcoming Tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {upcomingTasks.map((task, index) => (
+                    <div key={index} className="flex items-start justify-between pb-4 border-b last:border-0">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{task.task}</p>
+                        <p className="text-xs text-muted-foreground">Due: {task.deadline}</p>
+                      </div>
+                      <Badge 
+                        variant={
+                          task.priority === 'high' ? 'destructive' : 
+                          task.priority === 'medium' ? 'default' : 
+                          'secondary'
+                        }
+                      >
+                        {task.priority}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Funding Tab */}
+        <TabsContent value="funding" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Funding Overview</CardTitle>
+              <CardDescription>
+                Detailed breakdown of your funding sources and history
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8 text-muted-foreground">
+                Funding details will be displayed here
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="academics" className="space-y-6">
           <Card>
@@ -291,6 +627,122 @@ export default function StudentDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Campaign Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Update Campaign</DialogTitle>
+            <DialogDescription>
+              Make changes to your campaign details
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Campaign Title *</Label>
+              <Input
+                id="edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Campaign title"
+                maxLength={200}
+              />
+              <p className="text-xs text-muted-foreground">{editTitle.length}/200</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description *</Label>
+              <textarea
+                id="edit-description"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Campaign description"
+                rows={6}
+                maxLength={2000}
+                className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <p className="text-xs text-muted-foreground">{editDescription.length}/2000</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-goal">Goal Amount (USD) *</Label>
+                <Input
+                  id="edit-goal"
+                  type="number"
+                  value={editGoalAmount}
+                  onChange={(e) => setEditGoalAmount(e.target.value)}
+                  placeholder="5000"
+                  min="1"
+                  step="0.01"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <select
+                  id="edit-category"
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="education">Education</option>
+                  <option value="tuition">Tuition</option>
+                  <option value="scholarship">Scholarship</option>
+                  <option value="student_loans">Student Loans</option>
+                  <option value="living_expenses">Living Expenses</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-image">Image URL (optional)</Label>
+              <Input
+                id="edit-image"
+                type="url"
+                value={editImageUrl}
+                onChange={(e) => setEditImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+              />
+              {editImageUrl && (
+                <img
+                  src={editImageUrl}
+                  alt="Preview"
+                  className="mt-2 max-h-48 w-full object-cover rounded-lg"
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-deadline">Deadline *</Label>
+              <Input
+                id="edit-deadline"
+                type="datetime-local"
+                value={editDeadline}
+                onChange={(e) => setEditDeadline(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              disabled={editLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateCampaign}
+              disabled={editLoading}
+            >
+              {editLoading ? "Updating..." : "Update Campaign"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

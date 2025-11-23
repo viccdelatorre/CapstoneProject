@@ -370,3 +370,180 @@ def get_my_profile(request):
         'academic_year': profile.academic_year,
         'gpa': str(profile.gpa) if profile.gpa is not None else None,
     })
+
+@api_view(['POST'])
+@authentication_classes([])      
+@permission_classes([AllowAny])
+def create_campaign(request):
+    """Create a new campaign (same auth pattern as get_my_profile)"""
+    from app.models import Campaign
+    from django.utils import timezone
+    from datetime import datetime
+    
+    edu_user, error_response = get_edu_user_from_supabase(request)
+    if error_response:
+        return error_response
+
+    if not edu_user.is_student:
+        return Response({"error": "Only students can create campaigns"}, status=403)
+
+    student_profile = StudentProfile.objects.filter(user=edu_user).first()
+    if not student_profile:
+        return Response({"error": "Student profile not found"}, status=404)
+
+    # Validate input
+    try:
+        title = request.data.get("title", "").strip()
+        description = request.data.get("description", "").strip()
+        goal_amount = float(request.data.get("goal_amount", 0))
+        category = request.data.get("category", "education")
+        image_url = request.data.get("image_url")
+        deadline_str = request.data.get("deadline")
+
+        if not title or len(title) > 200:
+            return Response({"error": "Title is required (max 200 characters)"}, status=400)
+
+        if not description or len(description) > 2000:
+            return Response({"error": "Description is required (max 2000 characters)"}, status=400)
+
+        if goal_amount <= 0:
+            return Response({"error": "Goal amount must be greater than 0"}, status=400)
+
+        if not deadline_str:
+            return Response({"error": "Deadline is required"}, status=400)
+
+        # Parse deadline string - handle both ISO format and simple datetime-local format
+        try:
+            # Try ISO format first (with timezone)
+            if 'T' in deadline_str:
+                # ISO format with timezone
+                deadline = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+            else:
+                # Fallback for other formats
+                deadline = datetime.fromisoformat(deadline_str)
+                # Make timezone aware if naive
+                if deadline.tzinfo is None:
+                    deadline = timezone.make_aware(deadline)
+        except Exception as e:
+            return Response({"error": f"Invalid deadline format: {str(e)}"}, status=400)
+        
+        if deadline <= timezone.now():
+            return Response({"error": "Deadline must be in the future"}, status=400)
+
+        if category not in dict(Campaign.CATEGORY_CHOICES):
+            return Response({"error": "Invalid category"}, status=400)
+
+    except (ValueError, TypeError) as e:
+        return Response({"error": f"Invalid input: {str(e)}"}, status=400)
+
+    # Create campaign
+    try:
+        campaign = Campaign.objects.create(
+            student=student_profile,
+            title=title,
+            description=description,
+            goal_amount=goal_amount,
+            category=category,
+            image_url=image_url,
+            deadline=deadline,
+            status='active'
+        )
+
+        return Response({
+            "id": campaign.id,
+            "title": campaign.title,
+            "description": campaign.description,
+            "goal_amount": str(campaign.goal_amount),
+            "category": campaign.category,
+            "image_url": campaign.image_url,
+            "deadline": campaign.deadline.isoformat(),
+            "created_at": campaign.created_at.isoformat(),
+            "message": "Campaign created successfully"
+        }, status=201)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])      
+@permission_classes([AllowAny])
+def get_campaigns(request):
+    """Get all active campaigns"""
+    from app.models import Campaign
+    
+    try:
+        student_id = request.query_params.get('student_id')
+        
+        if student_id:
+            campaigns = Campaign.objects.filter(
+                student_id=student_id,
+                status='active'
+            ).order_by('-created_at')
+        else:
+            campaigns = Campaign.objects.filter(
+                status='active'
+            ).order_by('-created_at')
+
+        data = []
+        for campaign in campaigns:
+            data.append({
+                "id": campaign.id,
+                "title": campaign.title,
+                "description": campaign.description[:200] + "..." if len(campaign.description) > 200 else campaign.description,
+                "goal_amount": str(campaign.goal_amount),
+                "current_amount": str(campaign.current_amount),
+                "progress_percentage": campaign.progress_percentage,
+                "category": campaign.category,
+                "image_url": campaign.image_url,
+                "student": {
+                    "id": campaign.student.id,
+                    "full_name": campaign.student.full_name,
+                },
+                "deadline": campaign.deadline.isoformat(),
+                "created_at": campaign.created_at.isoformat(),
+            })
+
+        return Response(data, status=200)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
+@api_view(['GET'])
+@authentication_classes([])      
+@permission_classes([AllowAny])
+def get_campaign_detail(request, campaign_id):
+    """Get campaign details"""
+    from app.models import Campaign
+    
+    try:
+        campaign = Campaign.objects.get(id=campaign_id)
+
+        return Response({
+            "id": campaign.id,
+            "title": campaign.title,
+            "description": campaign.description,
+            "goal_amount": str(campaign.goal_amount),
+            "current_amount": str(campaign.current_amount),
+            "progress_percentage": campaign.progress_percentage,
+            "category": campaign.category,
+            "image_url": campaign.image_url,
+            "status": campaign.status,
+            "student": {
+                "id": campaign.student.id,
+                "full_name": campaign.student.full_name,
+                "email": campaign.student.email,
+                "university": campaign.student.university,
+                "major": campaign.student.major,
+            },
+            "deadline": campaign.deadline.isoformat(),
+            "is_deadline_passed": campaign.is_deadline_passed,
+            "created_at": campaign.created_at.isoformat(),
+            "updated_at": campaign.updated_at.isoformat(),
+        }, status=200)
+
+    except Campaign.DoesNotExist:
+        return Response({"error": "Campaign not found"}, status=404)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

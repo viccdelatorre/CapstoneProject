@@ -22,19 +22,29 @@ from backend.views import (
     verify_user,
     get_my_profile,
     create_profile,
+    list_students_for_donor,  
+    discover_students,
+    get_student_by_id,
+    get_donor_profile,
+    list_donor_tiers,
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
+
 urlpatterns = [
     path('admin/', admin.site.urls),
-
     path('auth/register', register_user, name='register'),
     path('auth/login', login_user, name='login'),
     path('auth/verify_user', verify_user, name='verify_user'),
+    path('students/<int:id>', get_student_by_id, name='get_student_by_id'),
 
-    # Profile
-    path('auth/profile', get_my_profile, name='get_my_profile'),        # GET
-    path('auth/profile/create', create_profile, name='create_profile'), # POST
+    path('auth/profile', get_my_profile, name='get_my_profile'),
+    path('auth/profile/create', create_profile, name='create_profile'),
+
+    path('students/discover', discover_students, name='discover_students'),
 
     path('auth/token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
+    path('donor/profile', get_donor_profile, name='get_donor_profile'),
+    path('donor/tiers', list_donor_tiers, name='list_donor_tiers'),
+
 ]

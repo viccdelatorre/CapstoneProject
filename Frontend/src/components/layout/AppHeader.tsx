@@ -67,6 +67,14 @@ export const AppHeader = () => {
               Discover Students
             </Link>
           )}
+          {isAuthenticated && hasRole('donor') && (
+            <Link
+              to="/membership"
+              className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Membership
+            </Link>
+          )}
         </nav>
 
   {/* Actions */}

@@ -8,6 +8,9 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, CreditCard, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/axios";
+import { useEffect } from "react";
+
 
 const Checkout = () => {
   const { studentId } = useParams();
@@ -18,15 +21,22 @@ const Checkout = () => {
   const [coverFees, setCoverFees] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Mock student data
-  const student = {
-    id: studentId,
-    name: "Sarah Johnson",
-    university: "Stanford University",
-    major: "Computer Science",
-    goal: 15000,
-    raised: 8500,
-  };
+  // fetch real student instead of mock
+  const [student, setStudent] = useState<any>(null);
+
+  useEffect(() => {
+    async function loadStudent() {
+      try {
+        const res = await api.get(`/students/${studentId}`);
+        setStudent(res.data);
+      } catch (err) {
+        console.error("Failed to load student:", err);
+      }
+    }
+    loadStudent();
+  }, [studentId]);
+
+  if (!student) return <p className="p-6 text-center">Loading student...</p>;
 
   const presetAmounts = [25, 50, 100, 250, 500];
   const processingFee = amount * 0.029 + 0.3;
@@ -212,7 +222,7 @@ const Checkout = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="font-semibold mb-1">{student.name}</p>
+                <p className="font-semibold mb-1">{student.full_name}</p>
                 <p className="text-sm text-muted-foreground">{student.university}</p>
                 <p className="text-sm text-muted-foreground">{student.major}</p>
               </div>

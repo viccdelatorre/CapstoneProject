@@ -1,5 +1,5 @@
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
-import api from "./api";
+import { paymentsApi as api } from "@/lib/api";
 import { useState } from "react";
 
 export default function PayPalCheckout({ amount = 1999 }) {

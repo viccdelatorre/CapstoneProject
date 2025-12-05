@@ -27,7 +27,10 @@ type StudentCard = {
   verified: boolean;
   tags: string[];
   urgency: Urgency;
+  campaignId?: number;  // add campaign ID
+  campaignTitle?: string;  // add campaign title
 };
+
 
 type ApiStudent = {
   id: number;
@@ -37,71 +40,16 @@ type ApiStudent = {
   major: string | null;
   academic_year: string | null;
   gpa: number | null;
+  campaign?: {  // add campaign data from API
+    id: number;
+    title: string;
+    goal_amount: string;
+    current_amount: string;
+    category: string;
+  };
 };
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_AUTH === 'true';
-
-// Mock data – used as fallback / in mock auth mode
-const mockStudents: StudentCard[] = [
-  {
-    id: '1',
-    name: 'Sarah Chen',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
-    school: 'MIT',
-    fieldOfStudy: 'Computer Science',
-    location: 'Cambridge, MA',
-    story:
-      'First-generation college student pursuing AI research to help underserved communities access healthcare...',
-    goalAmount: 15000,
-    raisedAmount: 8500,
-    verified: true,
-    tags: ['AI', 'Healthcare', 'First-Gen'],
-    urgency: 'high',
-  },
-  {
-    id: '2',
-    name: 'Marcus Johnson',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Marcus',
-    school: 'Stanford University',
-    fieldOfStudy: 'Environmental Engineering',
-    location: 'Palo Alto, CA',
-    story: 'Working on sustainable water purification systems for developing nations...',
-    goalAmount: 12000,
-    raisedAmount: 9200,
-    verified: true,
-    tags: ['Environment', 'Engineering', 'Sustainability'],
-    urgency: 'medium',
-  },
-  {
-    id: '3',
-    name: 'Aisha Patel',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aisha',
-    school: 'UC Berkeley',
-    fieldOfStudy: 'Biomedical Engineering',
-    location: 'Berkeley, CA',
-    story:
-      'Developing affordable prosthetics for children in low-income communities...',
-    goalAmount: 18000,
-    raisedAmount: 4500,
-    verified: true,
-    tags: ['Medicine', 'Innovation', 'Social Impact'],
-    urgency: 'high',
-  },
-  {
-    id: '4',
-    name: 'David Kim',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
-    school: 'Columbia University',
-    fieldOfStudy: 'Education Policy',
-    location: 'New York, NY',
-    story: 'Researching education equity and access for rural communities...',
-    goalAmount: 10000,
-    raisedAmount: 7800,
-    verified: true,
-    tags: ['Education', 'Policy', 'Rural'],
-    urgency: 'low',
-  },
-];
 
 const mapApiStudentToCard = (s: ApiStudent): StudentCard => {
   const tags: string[] = [];
@@ -109,6 +57,9 @@ const mapApiStudentToCard = (s: ApiStudent): StudentCard => {
   if (s.major) tags.push(s.major);
   if (s.academic_year) tags.push(s.academic_year);
   if (s.gpa != null && !isNaN(Number(s.gpa))) tags.push(`${Number(s.gpa).toFixed(2)} GPA`);
+
+  const campaignGoal = s.campaign ? parseFloat(s.campaign.goal_amount) : 10000;
+  const campaignRaised = s.campaign ? parseFloat(s.campaign.current_amount) : 0;
 
   return {
     id: String(s.id),
@@ -119,17 +70,14 @@ const mapApiStudentToCard = (s: ApiStudent): StudentCard => {
     school: s.university || 'University not specified',
     fieldOfStudy: s.major || 'Field of study not specified',
     location: s.university || '',
-    story:
-      s.major || s.university
-        ? `Student at ${s.university || 'their university'} studying ${
-            s.major || 'their field'
-          }...`
-        : 'Student profile coming soon...',
-    goalAmount: 10000,
-    raisedAmount: 0,
+    story: s.campaign?.title || 'No active campaign',
+    goalAmount: campaignGoal,
+    raisedAmount: campaignRaised,
     verified: true,
     tags,
     urgency: 'medium',
+    campaignId: s.campaign?.id,
+    campaignTitle: s.campaign?.title,
   };
 };
 
@@ -137,14 +85,13 @@ export default function Discover() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('relevance');
-  const [students, setStudents] = useState<StudentCard[]>(mockStudents);
+  const [students, setStudents] = useState<StudentCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadStudents = async () => {
       if (USE_MOCK) {
-        // In mock mode we keep the hardcoded students
         return;
       }
 
@@ -173,10 +120,8 @@ export default function Discover() {
         setStudents(mapped);
       } catch (err) {
         console.error('Failed to load students from backend', err);
-        setError(
-          'Could not load students from the server. Showing sample students for now.'
-        );
-        setStudents(mockStudents);
+        setError('Could not load students from the server.');
+        setStudents([]);
       } finally {
         setLoading(false);
       }
@@ -227,7 +172,6 @@ export default function Discover() {
       return weight(b.urgency) - weight(a.urgency);
     }
 
-    // 'relevance' or 'newest' currently default to original order
     return 0;
   });
 
@@ -338,10 +282,19 @@ export default function Discover() {
                     </span>
                   </div>
 
-                  {/* Story Preview */}
+                  {/* Story Preview / Campaign Title */}
                   <p className="mb-4 line-clamp-3 text-sm text-muted-foreground">
                     {student.story}
                   </p>
+
+                  {/* Campaign Info */}
+                  {student.campaignTitle && (
+                    <div className="mb-3 rounded-lg bg-primary/10 p-2">
+                      <p className="text-xs font-medium text-primary">
+                        Campaign: {student.campaignTitle}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Tags */}
                   <div className="mb-4 flex flex-wrap gap-2">
@@ -390,25 +343,28 @@ export default function Discover() {
                 </CardContent>
 
                 <CardFooter className="border-t bg-muted/30 p-4">
-                  <div className="flex w-full gap-2">
-                    <Button
-                      className="flex-1"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/students/${student.id}`);
-                      }}
-                    >
-                      <Heart className="mr-2 h-4 w-4" />
-                      Donate
-                    </Button>
-
-                  </div>
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/students/${student.id}`);
+                    }}
+                  >
+                    <Heart className="mr-2 h-4 w-4" />
+                    View & Donate
+                  </Button>
                 </CardFooter>
               </Card>
             </motion.div>
           ))}
         </div>
+
+        {sortedStudents.length === 0 && !loading && (
+          <div className="text-center">
+            <p className="text-muted-foreground">No students found.</p>
+          </div>
+        )}
 
         {/* Load More */}
         <div className="mt-12 text-center">

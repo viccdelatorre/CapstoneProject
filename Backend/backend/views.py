@@ -14,6 +14,8 @@ import requests
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import authentication_classes
 from app.models import DonorProfile, DonorTier
+from django.db import IntegrityError
+
 
 SUPABASE_URL = "https://zumkrhrasldshlnfgpft.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1bWtyaHJhc2xkc2hsbmZncGZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mjg0NDMsImV4cCI6MjA3NjEwNDQ0M30.XO969jHsvXNXWVK1-q9UvqoOu78hm4EZdML6qwYAFtE"  # move to .env
@@ -56,11 +58,16 @@ def get_donor_profile(request):
         "tier": donor_profile.tier.name if donor_profile.tier else None,
         "tier_benefits": donor_profile.tier.benefits if donor_profile.tier else None,
     })
+
 @api_view(['GET'])
 @authentication_classes([])  
 @permission_classes([AllowAny])
 def discover_students(request):
-    students = StudentProfile.objects.all().order_by("full_name")
+    # Only get students with exactly one campaign
+    students = StudentProfile.objects.select_related("campaign").filter(
+        campaign__isnull=False
+    ).order_by("full_name")
+    
     data = [
         {
             "id": s.id,
@@ -70,17 +77,39 @@ def discover_students(request):
             "major": s.major,
             "academic_year": s.academic_year,
             "gpa": str(s.gpa) if s.gpa is not None else None,
+            "campaign": {
+                "id": s.campaign.id,
+                "title": s.campaign.title,
+                "goal_amount": str(s.campaign.goal_amount),
+                "current_amount": str(s.campaign.current_amount),
+                "category": s.campaign.category,
+            } if s.campaign else None,
         }
         for s in students
     ]
     return Response(data)
+
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def get_student_by_id(request, id):
     try:
-        student = StudentProfile.objects.get(id=id)
+        student = StudentProfile.objects.select_related("user", "campaign").get(id=id)
     except StudentProfile.DoesNotExist:
         return Response({"error": "Student not found"}, status=404)
+
+    campaign_data = None
+    if student.campaign:
+        campaign_data = {
+            "id": student.campaign.id,
+            "title": student.campaign.title,
+            "description": student.campaign.description,
+            "goal_amount": str(student.campaign.goal_amount),
+            "current_amount": str(student.campaign.current_amount),
+            "category": student.campaign.category,
+            "progress_percentage": student.campaign.progress_percentage,
+            "image_url": student.campaign.image_url,
+            "deadline": student.campaign.deadline.isoformat(),
+        }
 
     return Response({
         "id": student.id,
@@ -90,6 +119,7 @@ def get_student_by_id(request, id):
         "major": student.major,
         "academic_year": student.academic_year,
         "gpa": str(student.gpa) if student.gpa else None,
+        "campaign": campaign_data,
     })
 
 def get_edu_user_from_supabase(request):
@@ -496,6 +526,11 @@ def create_campaign(request):
     student_profile = StudentProfile.objects.filter(user=edu_user).first()
     if not student_profile:
         return Response({"error": "Student profile not found"}, status=404)
+    
+
+    # Prevent creating more than one campaign per student (fast-fail)
+    if getattr(student_profile, "campaign", None) is not None:
+        return Response({"error": "A campaign already exists for this student"}, status=400)
 
     # Validate input
     try:
@@ -542,18 +577,19 @@ def create_campaign(request):
     except (ValueError, TypeError) as e:
         return Response({"error": f"Invalid input: {str(e)}"}, status=400)
 
-    # Create campaign
+    # Create campaign (DB constraint + transaction protects against race)
     try:
-        campaign = Campaign.objects.create(
-            student=student_profile,
-            title=title,
-            description=description,
-            goal_amount=goal_amount,
-            category=category,
-            image_url=image_url,
-            deadline=deadline,
-            status='active'
-        )
+        with transaction.atomic():
+            campaign = Campaign.objects.create(
+                student=student_profile,
+                title=title,
+                description=description,
+                goal_amount=goal_amount,
+                category=category,
+                image_url=image_url,
+                deadline=deadline,
+                status='active'
+            )
 
         return Response({
             "id": campaign.id,
@@ -567,6 +603,9 @@ def create_campaign(request):
             "message": "Campaign created successfully"
         }, status=201)
 
+    except IntegrityError:
+        # concurrent create hit DB unique constraint
+        return Response({"error": "A campaign already exists for this student (concurrent request)"}, status=400)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 

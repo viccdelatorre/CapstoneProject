@@ -7,7 +7,7 @@ import {
   useElements,
   useStripe,
 } from "@stripe/react-stripe-js";
-import api from "./api";
+import { paymentsApi as api } from "@/lib/api";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 

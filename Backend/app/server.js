@@ -23,6 +23,5 @@ app.use(bodyParser.json());
 app.get("/api/health", (req, res) => res.json({ ok: true, ts: Date.now() }));
 
 app.use("/api", routes);
-
-const port = Number(process.env.PORT || 4000);
+const port = Number(process.env.PORT || 8000);
 app.listen(port, () => console.log(`Backend on http://localhost:${port}`));

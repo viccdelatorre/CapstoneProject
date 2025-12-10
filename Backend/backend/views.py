@@ -15,10 +15,10 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import authentication_classes
 from app.models import DonorProfile, DonorTier
 from django.db import IntegrityError
+import os
 
-
-SUPABASE_URL = "https://zumkrhrasldshlnfgpft.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp1bWtyaHJhc2xkc2hsbmZncGZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA1Mjg0NDMsImV4cCI6MjA3NjEwNDQ0M30.XO969jHsvXNXWVK1-q9UvqoOu78hm4EZdML6qwYAFtE"  # move to .env
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

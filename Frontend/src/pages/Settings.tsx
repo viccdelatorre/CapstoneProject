@@ -40,9 +40,7 @@ const Settings = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        // const token = localStorage.getItem("access"); //this works, but using supabase auth to be consistent is better bc this localStorage token will eventually expire
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        const token = localStorage.getItem("access"); 
         if (!token) {
           setLoading(false);
           return;

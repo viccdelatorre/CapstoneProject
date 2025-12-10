@@ -26,11 +26,32 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
 
+  // 1. Load User on Mount
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) setUser(JSON.parse(storedUser));
   }, []);
   
+  // This ensures that when Supabase rotates the token,
+  // we instantly update localStorage so API calls don't fail.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => { 
+      if (session?.access_token) {
+        // Token refreshed? Save the new one!
+        localStorage.setItem("access", session.access_token);
+      } else if (event === 'SIGNED_OUT') {
+        // User logged out? Clear everything.
+        localStorage.removeItem("access");
+        localStorage.removeItem("user");
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const VITE_USE_MOCK_AUTH = import.meta.env.VITE_USE_MOCK_AUTH === "true";
 
   const login = async (email: string, password: string) => {
@@ -63,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token = data.session.access_token;
 
     // Verify with Django (sync user)
-    const res = await api.post("/auth/login", { access_token: token }); // note trailing slash
+    const res = await api.post("/auth/login", { access_token: token }); 
     const syncedUser = res.data.user;
 
     const user: User = {

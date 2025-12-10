@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/providers/AuthProvider";
 import { api } from "@/lib/axios";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 type StudentProfile = {
   id: number;
@@ -39,7 +40,9 @@ const Settings = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const token = localStorage.getItem("access");
+        // const token = localStorage.getItem("access"); //this works, but using supabase auth to be consistent is better bc this localStorage token will eventually expire
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
         if (!token) {
           setLoading(false);
           return;

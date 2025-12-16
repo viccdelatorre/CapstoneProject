@@ -1,0 +1,9 @@
+DATABASE_URL=
+
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+
+# Django Keys (Keep these)
+SECRET_KEY=django-insecure-... 
+DEBUG=True
+

@@ -30,6 +30,7 @@ import {
   Edit,
   Trash2
 } from "lucide-react";
+import { boolean } from "zod";
 
 type StudentProfile = {
   id: number;
@@ -244,6 +245,9 @@ export default function StudentDashboard() {
   // Calculate totals from campaigns
   const totalGoal = campaigns.reduce((sum, c) => sum + parseFloat(c.goal_amount || "0"), 0);
   const totalFunding = campaigns.reduce((sum, c) => sum + parseFloat(c.current_amount || "0"), 0);
+  const totalDonors = 0; // You can later fetch and calculate this value
+  const newDonorsThisMonth = 0;
+  const newDonor: boolean = true;
 
   // Use profile values with reasonable fallbacks
   const studentData = {
@@ -253,10 +257,11 @@ export default function StudentDashboard() {
     year: profile?.academic_year || "Add your academic year",
     gpa: profile?.gpa ?? "N/A",
     profileComplete: 85, // you can later compute this from profile
-    fundingGoal: totalGoal || 15000,
+    fundingGoal: totalGoal,
     currentFunding: totalFunding,
-    donors: 12,
+    donors: totalDonors,
     campaigns: campaigns.length,
+    myDonorsInMonth: totalDonors - newDonorsThisMonth,
   };
 
   const recentActivities = [
@@ -334,7 +339,7 @@ export default function StudentDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{studentData.donors}</div>
             <p className="text-xs text-muted-foreground">
-              +2 this month
+              +{studentData.myDonorsInMonth} this month
             </p>
           </CardContent>
         </Card>

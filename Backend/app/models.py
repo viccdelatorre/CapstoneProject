@@ -33,6 +33,14 @@ class StudentProfile(models.Model):
     def __str__(self):
         return self.full_name
 
+    @property
+    def donors_count(self):
+        """Count unique donors for this student's campaign"""
+        campaign = getattr(self, 'campaign', None)  # OneToOne gives direct attribute
+        if campaign:
+            return campaign.donation_set.values('donor').distinct().count()
+        return 0
+
 
 class DonorTier(models.Model):
     TIER_CHOICES = [
@@ -78,7 +86,7 @@ class Campaign(models.Model):
         ('cancelled', 'Cancelled'),
     ]
 
-    student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE, related_name='campaigns')
+    student = models.OneToOneField(StudentProfile, on_delete=models.CASCADE, related_name='campaign')
     title = models.CharField(max_length=200)
     description = models.TextField()
     goal_amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -93,7 +101,7 @@ class Campaign(models.Model):
     class Meta:
         db_table = 'app_campaign'
         ordering = ['-created_at']
-
+        
     def __str__(self):
         return self.title
 

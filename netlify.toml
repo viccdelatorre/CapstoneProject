@@ -5,10 +5,13 @@
   publish = "dist"
   command = "npm ci && npm run build"
 
-# Provide an example env entry here for clarity. Do NOT store secrets in this file.
+# Environment variables
 [build.environment]
-# Set your backend URL in the Netlify site settings as VITE_API_URL, e.g.
-# VITE_API_URL = "https://your-backend.example.com/"
+  # Example: set your backend URL in Netlify site settings
+  # VITE_API_URL = "https://your-backend.example.com/"
+
+  # Whitelist VITE_ keys for Netlify secrets scanner
+  SECRETS_SCAN_OMIT_KEYS = "VITE_API_URL,VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
 
 [[redirects]]
   # SPA fallback so client-side routes resolve to index.html

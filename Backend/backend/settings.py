@@ -66,6 +66,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'backend.urls'
 
 CORS_ALLOWED_ORIGINS = [
+    "https://edufund-co.netlify.app",
     "http://127.0.0.1:5173",
     "http://localhost:5173",
 ]

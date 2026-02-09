@@ -29,7 +29,11 @@ SECRET_KEY = 'django-insecure-!w%g5+5=s5rld_o)=ao5ny21v0$ug#3#-^1vj=!z7j36m2wr_b
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "edufund-back.onrender.com",
+    "localhost",
+    "127.0.0.1",
+]
 
 
 # Application definition
@@ -62,6 +66,7 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'backend.urls'
 
 CORS_ALLOWED_ORIGINS = [
+    "https://edufund-co.netlify.app",
     "http://127.0.0.1:5173",
     "http://localhost:5173",
 ]

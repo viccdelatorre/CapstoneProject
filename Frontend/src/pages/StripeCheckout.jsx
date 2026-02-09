@@ -9,7 +9,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { paymentsApi as api } from "@/lib/api";
 
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+//const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 function WalletProbe({ amount = 1999, currency = "usd" }) {
   const stripe = useStripe();

@@ -1,0 +1,20 @@
+# Netlify configuration for the Frontend (Vite) app
+# Builds the frontend located in the `Frontend` folder and publishes the `dist` output.
+[build]
+  base = "Frontend"
+  publish = "dist"
+  command = "npm ci && npm run build"
+
+# Environment variables
+[build.environment]
+  # Example: set your backend URL in Netlify site settings
+  # VITE_API_URL = "https://your-backend.example.com/"
+
+  # Whitelist VITE_ keys for Netlify secrets scanner
+  SECRETS_SCAN_OMIT_KEYS = "VITE_API_URL,VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL,VITE_APP_ENV"
+
+[[redirects]]
+  # SPA fallback so client-side routes resolve to index.html
+  from = "/*"
+  to = "/index.html"
+  status = 200

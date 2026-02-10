@@ -80,31 +80,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user;
   };
 
-  //  REGISTER via Supabase (includes metadata)
   const register = async (email: string, password: string, name: string, role: UserRole) => {
-    const [firstName, ...lastParts] = name.split(" ");
-    const lastName = lastParts.join(" ") || "";
+  const [firstName, ...lastParts] = name.split(" ");
+  const lastName = lastParts.join(" ") || "";
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          role,
-        },
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+        role,
       },
-    });
+    },
+  });
 
-    if (error) throw error;
-    console.log("Registered in Supabase:", data.user);
+  if (error) throw error;
+  console.log("Registered in Supabase:", data.user);
 
-    // Optional: auto-login to Django after registration
-    if (data.session?.access_token) {
-      await api.post("/auth/login", { access_token: data.session.access_token });
-    }
+    // AUTO-LOGIN
+    // Supabase doesn't always provide session on signUp, so call signInWithPassword
+    const loginData = await supabase.auth.signInWithPassword({ email, password });
+    if (!loginData.data.session) throw new Error("Failed to log in after registration");
+
+    const token = loginData.data.session.access_token;
+
+    // Sync with Django backend
+    const res = await api.post("/auth/login", { access_token: token });
+    const syncedUser = res.data.user;
+
+    const user: User = {
+      id: syncedUser.id,
+      email: syncedUser.email,
+      name: `${syncedUser.first_name ?? ""} ${syncedUser.last_name ?? ""}`.trim() || syncedUser.email,
+      roles: [syncedUser.is_student ? "student" : syncedUser.is_donor ? "donor" : "admin"],
+    };
+
+    setUser(user);
+    localStorage.setItem("user", JSON.stringify(user));
+    localStorage.setItem("access", token);
   };
+
 
   // LOGOUT
   const logout = async () => {

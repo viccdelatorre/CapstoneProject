@@ -1,12 +1,30 @@
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 
-// Use Vite environment variable VITE_API_URL at build time for the API base URL.
-// Netlify: set VITE_API_URL in Site > Build & deploy > Environment to your backend URL.
 const baseURL = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:8000/";
 
 export const api = axios.create({
   baseURL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: new AxiosHeaders({ "Content-Type": "application/json" }),
 });
+
+api.interceptors.request.use((config) => {
+  try {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("access");
+      if (token) {
+        // Ensure config.headers is an AxiosHeaders instance
+        const headers = new AxiosHeaders(config.headers);
+        headers.set("Authorization", `Bearer ${token}`);
+        config.headers = headers;
+      }
+    }
+  } catch (e) {
+    // ignore errors
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (r) => r,
+  (err) => Promise.reject(err)
+);

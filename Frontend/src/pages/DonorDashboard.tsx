@@ -3,42 +3,65 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Heart, DollarSign, Users, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/axios";
 
 const DonorDashboard = () => {
-  // Mock data
-  const stats = {
-    totalDonated: 5000,
-    studentsSupported: 8,
-    activeScholarships: 3,
-    impactScore: 92,
-  };
+  // Stats default to zeros so UI shows sensible defaults for new donors
+  const [stats, setStats] = useState({
+    totalDonated: 0,
+    studentsSupported: 0,
+    activeScholarships: 0,
+    impactScore: 0,
+    // optional field for progress to next reward (percentage 0-100)
+    progressToNext: 0,
+  });
 
-  const recentDonations = [
-    {
-      id: 1,
-      studentName: "Sarah Johnson",
-      amount: 500,
-      date: "2025-10-15",
-      status: "active",
-      progress: 75,
-    },
-    {
-      id: 2,
-      studentName: "Michael Chen",
-      amount: 1000,
-      date: "2025-10-10",
-      status: "active",
-      progress: 45,
-    },
-    {
-      id: 3,
-      studentName: "Emily Rodriguez",
-      amount: 750,
-      date: "2025-10-05",
-      status: "completed",
-      progress: 100,
-    },
-  ];
+  // Recent donations start empty for new donors
+  const [recentDonations, setRecentDonations] = useState<any[]>([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function fetchDonorData() {
+      try {
+        // Fetch donor profile (backend endpoint: /donor/profile)
+        const res = await api.get("donor/profile");
+        const data = res.data || {};
+
+        // Parse total_donations (backend returns string)
+        const totalDonated = data.total_donations ? Number(data.total_donations) : 0;
+
+        // Keep other stats at 0 if not provided by backend
+        const updated = {
+          totalDonated,
+          studentsSupported: data.students_supported ?? 0,
+          activeScholarships: data.active_scholarships ?? 0,
+          impactScore: data.impact_score ?? 0,
+          progressToNext: data.progress_to_next ?? 0,
+        };
+
+        if (mounted) setStats(updated);
+
+        // If there's an endpoint for recent donations in the future, fetch here.
+        // For now initialize as empty for new donors (per requirements).
+        if (mounted) setRecentDonations([]);
+      } catch (err) {
+        // Silently fail and keep defaults (useful for local dev without backend)
+        // Optionally you could set an error state here.
+        if (mounted) {
+          setStats((s) => ({ ...s }));
+          setRecentDonations([]);
+        }
+      }
+    }
+
+    fetchDonorData();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -55,12 +78,12 @@ const DonorDashboard = () => {
               <div>
                 <h2 className="text-2xl font-bold">Gold Member</h2>
                 <p className="text-sm text-muted-foreground">
-                  You’ve donated $5,000 total —  🌟 top 5% of donors
+                  You’ve donated ${stats.totalDonated.toLocaleString()} total —  🌟 top 5% of donors
                 </p>
               </div>
               <div className="flex flex-col items-end">
                 <p className="text-sm text-muted-foreground mb-1">Progress to next reward</p>
-                <Progress value={82} className="w-40" />
+                <Progress value={Math.max(0, Math.min(100, stats.progressToNext || 0))} className="w-40" />
               </div>
             </CardContent>
           </Card>
@@ -143,13 +166,13 @@ const DonorDashboard = () => {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Progress</span>
-                      <span className="font-medium">{donation.progress}%</span>
+                      <span className="font-medium">{donation.progress ?? 0}%</span>
                     </div>
-                    <Progress value={donation.progress} />
+                    <Progress value={Math.max(0, Math.min(100, donation.progress ?? 0))} />
                   </div>
                 </div>
                 <div className="ml-6 text-right">
-                  <p className="text-2xl font-bold">${donation.amount}</p>
+                  <p className="text-2xl font-bold">${(donation.amount ?? 0).toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">{donation.date}</p>
                 </div>
               </div>

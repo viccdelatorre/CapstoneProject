@@ -15,6 +15,7 @@ export interface User {
 export interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
   login: (email: string, password: string) => Promise<User>;
   register: (email: string, password: string, name: string, role: UserRole) => Promise<void>;
   logout: () => void;
@@ -141,6 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         isAuthenticated: !!user,
+        setUser,
         login,
         register,
         logout,

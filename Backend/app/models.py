@@ -25,6 +25,7 @@ class StudentProfile(models.Model):
     user = models.OneToOneField(EduUser, on_delete=models.CASCADE)
     full_name = models.CharField(max_length=255)
     email = models.EmailField()
+    avatar_url = models.URLField(null=True, blank=True)
     university = models.CharField(max_length=255, null=True, blank=True)
     major = models.CharField(max_length=255, null=True, blank=True)
     academic_year = models.CharField(max_length=50, null=True, blank=True)
@@ -61,6 +62,7 @@ class DonorProfile(models.Model):
     user = models.OneToOneField(EduUser, on_delete=models.CASCADE, related_name='donor_profile')
     full_name = models.CharField(max_length=200)
     email = models.EmailField(unique=True)
+    avatar_url = models.URLField(null=True, blank=True)
     total_donations = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     tier = models.ForeignKey(DonorTier, on_delete=models.SET_NULL, null=True, blank=True)
 

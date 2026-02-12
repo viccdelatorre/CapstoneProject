@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import resolveAvatarUrl from '@/lib/avatar';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, BookOpen, Award } from 'lucide-react';
 
@@ -12,6 +13,7 @@ type StudentData = {
   id: number;
   full_name: string;
   email: string;
+  avatar?: string | null;                
   university: string | null;
   major: string | null;
   academic_year: string | null;
@@ -42,7 +44,13 @@ export default function StudentProfile() {
         setLoading(true);
         setError(null);
         const res = await api.get<StudentData>(`/students/${id}`);
-        setStudent(res.data);
+        const studentData = res.data;
+        // resolve avatar if necessary
+        if (studentData.avatar && !studentData.avatar.startsWith('http')) {
+          const url = await resolveAvatarUrl(studentData.avatar, 60);
+          if (url) studentData.avatar = url;
+        }
+        setStudent(studentData);
       } catch (err) {
         console.error('Failed to load student:', err);
         setError('Could not load student profile');
@@ -70,13 +78,11 @@ export default function StudentProfile() {
         <Card className="mb-6 p-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
             <Avatar className="h-24 w-24 ring-4 ring-primary/20">
-              <AvatarImage
-                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                  student.full_name
-                )}`}
-                alt={student.full_name}
-              />
-              <AvatarFallback>{student.full_name?.charAt(0)}</AvatarFallback>
+              {student.avatar ? (
+                <AvatarImage src={student.avatar} alt={student.full_name} />
+              ) : (
+                <AvatarFallback>{student.full_name?.charAt(0)}</AvatarFallback>
+              )}
             </Avatar>
 
             <div className="flex-1">

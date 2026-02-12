@@ -1,5 +1,6 @@
 
 from django.http import JsonResponse
+import os
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.contrib.auth.hashers import make_password
@@ -15,6 +16,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework.decorators import authentication_classes
 from app.models import DonorProfile, DonorTier
 from django.db import IntegrityError
+import logging
+import re
+from django.db import transaction, IntegrityError
+from django.core.exceptions import MultipleObjectsReturned
+from rest_framework import status
 
 
 SUPABASE_URL = "https://zumkrhrasldshlnfgpft.supabase.co"
@@ -54,6 +60,7 @@ def get_donor_profile(request):
     return Response({
         "full_name": donor_profile.full_name,
         "email": donor_profile.email,
+        "avatar": donor_profile.avatar_url if getattr(donor_profile, 'avatar_url', None) else None,
         "total_donations": str(donor_profile.total_donations),
         "tier": donor_profile.tier.name if donor_profile.tier else None,
         "tier_benefits": donor_profile.tier.benefits if donor_profile.tier else None,
@@ -73,7 +80,7 @@ def discover_students(request):
             "id": s.id,
             "full_name": s.full_name,
             "email": s.email,
-            "university": s.university,
+            "avatar": s.avatar_url if getattr(s, 'avatar_url', None) else None,            "university": s.university,
             "major": s.major,
             "academic_year": s.academic_year,
             "gpa": str(s.gpa) if s.gpa is not None else None,
@@ -114,6 +121,7 @@ def get_student_by_id(request, id):
     return Response({
         "id": student.id,
         "full_name": student.full_name,
+        "avatar": student.avatar_url if getattr(student, 'avatar_url', None) else None,
         "email": student.email,
         "university": student.university,
         "major": student.major,
@@ -121,55 +129,53 @@ def get_student_by_id(request, id):
         "gpa": str(student.gpa) if student.gpa else None,
         "campaign": campaign_data,
     })
-
 def get_edu_user_from_supabase(request):
-    """
-    Read Authorization: Bearer <supabase_jwt>, verify it with Supabase,
-    and return the matching EduUser.
-    """
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return None, Response({"error": "Missing Authorization header"}, status=401)
 
-    token = auth_header.split(" ")[1]
-
-    res = requests.get(
-        f"{SUPABASE_URL}/auth/v1/user",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "apikey": SUPABASE_ANON_KEY,
-        },
-    )
+    token = auth_header.split(" ", 1)[1]
+    try:
+        res = requests.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={"Authorization": f"Bearer {token}", "apikey": SUPABASE_ANON_KEY},
+            timeout=10,
+        )
+    except requests.RequestException as e:
+        return None, Response({"error": "Failed to contact Supabase", "detail": str(e)}, status=502)
 
     if res.status_code != 200:
-        return None, Response(
-            {
-                "error": "Invalid Supabase token",
-                "supabase_status": res.status_code,
-                "supabase_body": res.text,
-            },
-            status=401,
-        )
+        return None, Response({"error": "Invalid Supabase token", "supabase_status": res.status_code, "supabase_body": res.text}, status=401)
 
-    user_data = res.json()
+    try:
+        user_data = res.json()
+    except ValueError:
+        return None, Response({"error": "Invalid JSON from Supabase", "body": res.text}, status=502)
+
     email = user_data.get("email")
-    metadata = user_data.get("user_metadata", {}) or user_data.get("raw_user_meta_data", {})
+    if not email:
+        # Reject early instead of attempting DB writes with a None email
+        return None, Response({"error": "Supabase returned no email for user", "body": user_data}, status=400)
+
+    metadata = user_data.get("user_metadata", {}) or user_data.get("raw_user_meta_data", {}) or {}
     role = metadata.get("role")
 
-    edu_user, _ = EduUser.objects.get_or_create(
-        email=email,
-        defaults={
-            "username": email,
-            "password": make_password(None),
-            "is_active": True,
-            "is_student": role == "student" if role else False,
-            "is_donor": role == "donor" if role else False,
-        },
-    )
+    try:
+        edu_user, _ = EduUser.objects.get_or_create(
+            email=email,
+            defaults={
+                "username": email,
+                "password": make_password(None),
+                "is_active": True,
+                "is_student": (role == "student") if role else False,
+                "is_donor": (role == "donor") if role else False,
+            },
+        )
+    except Exception as e:
+        # Log server-side, but return a controlled 500 to client
+        return None, Response({"error": "Database error while fetching/creating user"}, status=500)
 
     return edu_user, None
-
-
 
 @api_view(["GET"])
 @permission_classes([AllowAny])  # we rely on Supabase JWT, not Django auth
@@ -190,6 +196,7 @@ def list_students_for_donor(request):
             "id": s.id,
             "full_name": s.full_name,
             "email": s.email,
+            "avatar": s.avatar_url if getattr(s, 'avatar_url', None) else None,
             "university": s.university,
             "major": s.major,
             "academic_year": s.academic_year,
@@ -451,61 +458,224 @@ def create_profile(request):
         'academic_year': profile.academic_year,
         'gpa': str(profile.gpa) if profile.gpa is not None else None,
     })
-@api_view(['GET', 'PUT'])
+
+@api_view(["GET", "PUT"])
 @authentication_classes([])      
-@permission_classes([AllowAny])  # Supabase auth, not Django session/JWT
+@permission_classes([AllowAny])
 def get_my_profile(request):
+    """
+    GET  -> return the caller's profile (student or donor) as JSON
+    PUT  -> allow students to update profile fields (full_name, university, major,
+            academic_year, gpa, avatar). Donor updates are not supported here.
+    """
+    logger = logging.getLogger(__name__)
+
     edu_user, error_response = get_edu_user_from_supabase(request)
     if error_response:
         return error_response
 
-    if not edu_user.is_student:
-        return Response({"error": "Not a student account"}, status=403)
+    # --------------------------
+    # Student path
+    # --------------------------
+    if edu_user.is_student:
+        # Ensure we handle DB duplicates / schema issues gracefully
+        try:
+            profile, _ = StudentProfile.objects.get_or_create(
+                user=edu_user,
+                defaults={
+                    "full_name": f"{edu_user.first_name} {edu_user.last_name}".strip() or edu_user.email,
+                    "email": edu_user.email,
+                },
+            )
+        except MultipleObjectsReturned:
+            logger.exception("Multiple StudentProfile rows for user id=%s email=%s", getattr(edu_user, "id", None), edu_user.email)
+            return Response({"error": "Multiple student profiles exist for this account; contact support"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except IntegrityError as e:
+            logger.exception("IntegrityError when getting/creating StudentProfile for %s: %s", edu_user.email, e)
+            return Response({"error": "Database error while accessing profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.exception("Unexpected error when accessing StudentProfile for %s: %s", edu_user.email, e)
+            return Response({"error": "Server error while accessing profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    profile, _ = StudentProfile.objects.get_or_create(
-        user=edu_user,
-        defaults={
-            "full_name": f"{edu_user.first_name} {edu_user.last_name}".strip() or edu_user.email,
-            "email": edu_user.email,
-        },
-    )
+        # GET request -> return profile
+        if request.method == "GET":
+            return Response({
+                'id': profile.id,
+                'full_name': profile.full_name,
+                'email': profile.email,
+                'avatar': profile.avatar_url if getattr(profile, 'avatar_url', None) else None,
+                'university': profile.university,
+                'major': profile.major,
+                'academic_year': profile.academic_year,
+                'gpa': str(profile.gpa) if profile.gpa is not None else None,
+            }, status=status.HTTP_200_OK)
 
-    if request.method == "GET":
+        # PUT -> update student profile
+        data = request.data
+
+        # Basic validation helpers
+        def is_valid_url(val: str) -> bool:
+            # simple heuristic; tighten if you need to whitelist domains
+            return bool(re.match(r"^https?://", val or ""))
+
+        # apply updates inside a transaction to avoid partial saves
+        try:
+            with transaction.atomic():
+                # editable fields
+                if "full_name" in data:
+                    profile.full_name = data.get("full_name") or profile.full_name
+
+                if "university" in data:
+                    profile.university = data.get("university") or None
+
+                if "major" in data:
+                    profile.major = data.get("major") or None
+
+                if "academic_year" in data:
+                    profile.academic_year = data.get("academic_year") or None
+
+                # GPA: allow null to clear; validate numeric and range
+                if "gpa" in data:
+                    gpa_val = data.get("gpa")
+                    if gpa_val in (None, "", "null"):
+                        profile.gpa = None
+                    else:
+                        try:
+                            gpa_f = float(gpa_val)
+                            if gpa_f < 0.0 or gpa_f > 4.0:
+                                return Response({"error": "GPA must be between 0.0 and 4.0"}, status=status.HTTP_400_BAD_REQUEST)
+                            profile.gpa = gpa_f
+                        except (TypeError, ValueError):
+                            return Response({"error": "Invalid GPA value"}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Avatar: accept hosted URL (from Supabase) or null/empty to clear
+                if "avatar" in data:
+                    avatar_val = data.get("avatar")
+                    if avatar_val in (None, "", "null"):
+                        profile.avatar_url = None
+                    else:
+                        if not isinstance(avatar_val, str) or not is_valid_url(avatar_val):
+                            # Reject obviously invalid URLs
+                            return Response({"error": "Invalid avatar URL"}, status=status.HTTP_400_BAD_REQUEST)
+                        profile.avatar_url = avatar_val
+
+                profile.save()
+        except IntegrityError as e:
+            logger.exception("IntegrityError saving StudentProfile for %s: %s", edu_user.email, e)
+            return Response({"error": "Database error saving profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.exception("Unexpected error saving StudentProfile for %s: %s", edu_user.email, e)
+            return Response({"error": "Server error saving profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Return updated profile
         return Response({
             'id': profile.id,
             'full_name': profile.full_name,
             'email': profile.email,
+            'avatar': profile.avatar_url if getattr(profile, 'avatar_url', None) else None,
             'university': profile.university,
             'major': profile.major,
             'academic_year': profile.academic_year,
             'gpa': str(profile.gpa) if profile.gpa is not None else None,
-        })
+        }, status=status.HTTP_200_OK)
 
-    # PUT -> update profile
-    data = request.data
-    profile.full_name = data.get("full_name", profile.full_name)
-    profile.university = data.get("university", profile.university)
-    profile.major = data.get("major", profile.major)
-    profile.academic_year = data.get("academic_year", profile.academic_year)
-
-    gpa = data.get("gpa", None)
-    if gpa is not None:
+    # --------------------------
+    # Donor path (read-only here)
+    # --------------------------
+    elif edu_user.is_donor:
         try:
-            profile.gpa = float(gpa)
-        except (TypeError, ValueError):
-            return Response({"error": "Invalid GPA value"}, status=400)
+            profile = DonorProfile.objects.select_related("tier").get(user=edu_user)
+        except DonorProfile.DoesNotExist:
+            return Response({"error": "Donor profile not found"}, status=status.HTTP_404_NOT_FOUND)
+        except MultipleObjectsReturned:
+            logger.exception("Multiple DonorProfile rows for user id=%s email=%s", getattr(edu_user, "id", None), edu_user.email)
+            return Response({"error": "Multiple donor profiles exist for this account; contact support"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            logger.exception("Error fetching DonorProfile for %s: %s", edu_user.email, e)
+            return Response({"error": "Server error while fetching profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        return Response({
+            "id": profile.id,
+            "full_name": profile.full_name,
+            "email": profile.email,
+            "avatar": profile.avatar_url if getattr(profile, 'avatar_url', None) else None,
+            "total_donations": str(profile.total_donations),
+            "tier": profile.tier.name if profile.tier else None,
+            "tier_benefits": profile.tier.benefits if profile.tier else None,
+        }, status=status.HTTP_200_OK)
+    else:
+        return Response({"error": "User has no profile"}, status=status.HTTP_403_FORBIDDEN)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def upload_avatar(request):
+    edu_user, err = get_edu_user_from_supabase(request)
+    if err:
+        return err
+
+    if 'avatar' not in request.FILES:
+        return Response({'error': 'No file uploaded'}, status=400)
+
+    file = request.FILES['avatar']
+
+    if edu_user.is_student:
+        profile = StudentProfile.objects.get(user=edu_user)
+    else:
+        profile = DonorProfile.objects.get(user=edu_user)
+
+    # Save uploaded file using Django default storage and persist public URL
+    from django.core.files.storage import default_storage
+
+    save_path = f"avatars/{edu_user.id}/{file.name}"
+    try:
+        saved = default_storage.save(save_path, file)
+        public_url = default_storage.url(saved)
+    except Exception as e:
+        return Response({"error": "Failed to save file on server", "detail": str(e)}, status=500)
+
+    profile.avatar_url = public_url
     profile.save()
 
-    return Response({
-        'id': profile.id,
-        'full_name': profile.full_name,
-        'email': profile.email,
-        'university': profile.university,
-        'major': profile.major,
-        'academic_year': profile.academic_year,
-        'gpa': str(profile.gpa) if profile.gpa is not None else None,
-    })
+    return Response({"avatar_url": public_url})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_avatar_signed_url(request):
+    """Return a short-lived signed URL for a file in the avatars bucket.
+
+    Query params:
+      - path: the object path inside the avatars bucket (e.g. "<supabase_uid>/avatar.png")
+      - expires: optional seconds until expiry (default 60)
+    """
+    path = request.query_params.get('path')
+    expires = int(request.query_params.get('expires', 60))
+
+    if not path:
+        return Response({"error": "Missing 'path' query parameter"}, status=400)
+
+    service_role = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
+    if not service_role:
+        return Response({"error": "Supabase service role key not configured on server"}, status=500)
+
+    sign_url = f"{SUPABASE_URL}/storage/v1/object/sign/avatars/{path}"
+    try:
+        resp = requests.post(
+            sign_url,
+            headers={
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': f'Bearer {service_role}',
+            },
+            json={"expiresIn": expires},
+            timeout=10,
+        )
+    except Exception as e:
+        return Response({"error": "Failed to contact Supabase storage", "detail": str(e)}, status=500)
+
+    if resp.status_code != 200:
+        return Response({"error": "Supabase returned an error", "detail": resp.text}, status=resp.status_code)
+
+    return Response(resp.json())
 
 @api_view(['POST'])
 @authentication_classes([])      

@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import resolveAvatarUrl from '@/lib/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { api } from '@/lib/axios';
 import { supabase } from '@/lib/supabase';
@@ -36,11 +37,12 @@ type ApiStudent = {
   id: number;
   full_name: string;
   email: string;
+  avatar?: string; 
   university: string | null;
   major: string | null;
   academic_year: string | null;
   gpa: number | null;
-  campaign?: {  // add campaign data from API
+  campaign?: {  // campaign data from API
     id: number;
     title: string;
     goal_amount: string;
@@ -48,6 +50,7 @@ type ApiStudent = {
     category: string;
   };
 };
+
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_AUTH === 'true';
 
@@ -61,12 +64,13 @@ const mapApiStudentToCard = (s: ApiStudent): StudentCard => {
   const campaignGoal = s.campaign ? parseFloat(s.campaign.goal_amount) : 10000;
   const campaignRaised = s.campaign ? parseFloat(s.campaign.current_amount) : 0;
 
+  // Use uploaded avatar if available; otherwise leave empty so UI shows initials
+  const avatarUrl = s.avatar || null;
+
   return {
     id: String(s.id),
     name: s.full_name || s.email,
-    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-      s.full_name || s.email || 'Student'
-    )}`,
+    avatar: avatarUrl,
     school: s.university || 'University not specified',
     fieldOfStudy: s.major || 'Field of study not specified',
     location: s.university || '',
@@ -80,6 +84,7 @@ const mapApiStudentToCard = (s: ApiStudent): StudentCard => {
     campaignTitle: s.campaign?.title,
   };
 };
+
 
 export default function Discover() {
   const navigate = useNavigate();
@@ -118,6 +123,27 @@ export default function Discover() {
 
         const mapped = res.data.map(mapApiStudentToCard);
         setStudents(mapped);
+
+        // Resolve any non-http avatars (private storage paths) in background
+        (async () => {
+          try {
+            const toResolve = mapped.filter((m) => m.avatar && !m.avatar.startsWith('http'));
+            if (toResolve.length === 0) return;
+            const promises = toResolve.map(async (s) => {
+              const url = await resolveAvatarUrl(s.avatar, 60);
+              return { id: s.id, url };
+            });
+            const results = await Promise.all(promises);
+            setStudents((prev) =>
+              prev.map((p) => {
+                const r = results.find((x) => x.id === p.id.toString());
+                return r && r.url ? { ...p, avatar: r.url } : p;
+              })
+            );
+          } catch (e) {
+            console.error('Failed to resolve some avatars', e);
+          }
+        })();
       } catch (err) {
         console.error('Failed to load students from backend', err);
         setError('Could not load students from the server.');
@@ -236,8 +262,7 @@ export default function Discover() {
         {/* Student Grid */}
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {sortedStudents.map((student, index) => (
-            <motion.div
-              key={student.id}
+            <motion.div key={`${student.id}-${index}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.1 }}
@@ -250,10 +275,11 @@ export default function Discover() {
                   {/* Header */}
                   <div className="mb-4 flex items-start justify-between">
                     <Avatar className="h-16 w-16 ring-2 ring-primary/20">
-                      <AvatarImage src={student.avatar} alt={student.name} />
-                      <AvatarFallback>
-                        {student.name.charAt(0)}
-                      </AvatarFallback>
+                      {student.avatar ? (
+                        <AvatarImage src={student.avatar} alt={student.name} />
+                      ) : (
+                        <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
+                      )}
                     </Avatar>
                     {student.verified && (
                       <Badge

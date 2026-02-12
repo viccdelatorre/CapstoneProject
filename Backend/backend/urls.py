@@ -27,6 +27,7 @@ from backend.views import (
     get_student_by_id,
     get_donor_profile,
     list_donor_tiers,
+    get_avatar_signed_url,
     create_campaign,    
     get_campaigns,        
     get_campaign_detail,
@@ -58,5 +59,6 @@ urlpatterns = [
     path('auth/token/refresh', TokenRefreshView.as_view(), name='token_refresh'),
     path('donor/profile', get_donor_profile, name='get_donor_profile'),
     path('donor/tiers', list_donor_tiers, name='list_donor_tiers'),
+    path('auth/avatar/signed-url', get_avatar_signed_url, name='get_avatar_signed_url'),
 
 ]

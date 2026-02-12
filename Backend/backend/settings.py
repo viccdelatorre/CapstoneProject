@@ -60,7 +60,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.common.CommonMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -69,6 +68,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://edufund-co.netlify.app",
     "http://127.0.0.1:5173",
     "http://localhost:5173",
+    "http://127.0.0.1:5174",
+    "http://localhost:5174",
 ]
 
 REST_FRAMEWORK = {
@@ -113,6 +114,7 @@ import os
 DATABASES = {
  'default': dj_database_url.config(default=os.environ.get('DATABASE_URL'))
 }
+print("DATABASE_URL =", os.environ.get("DATABASE_URL"))
 
 AUTH_USER_MODEL = 'app.EduUser'
 
